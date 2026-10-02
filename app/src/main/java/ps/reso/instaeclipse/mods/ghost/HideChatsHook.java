@@ -45,7 +45,7 @@ public class HideChatsHook {
 
     private static final String TAG = "ie_hidechat_btn";
     private static final String INBOX_ANCHOR = "DirectThreadStoreImpl.getSortedCopyOfThreadSummaries";
-    private static int threadHeaderId, backButtonId;
+    private static int threadHeaderId, backButtonId, tagKeyId;
 
     public void install(DexKitBridge bridge, ClassLoader classLoader) {
         installInboxFilter(bridge, classLoader);
@@ -125,6 +125,7 @@ public class HideChatsHook {
         android.content.res.Resources r = a.getResources();
         threadHeaderId = r.getIdentifier("direct_thread_header", "id", pkg);
         backButtonId   = r.getIdentifier("action_bar_button_back", "id", pkg);
+        tagKeyId       = r.getIdentifier("direct_thread_view_layout_tag_key", "id", pkg);
     }
 
     private void registerListener(final Activity activity) {
@@ -178,8 +179,14 @@ public class HideChatsHook {
             lp.gravity = Gravity.CENTER_VERTICAL;
             btn.setLayoutParams(lp);
 
+            final View headerRoot = header;
+            final String[] bound = { KeepUnsentMessagesHook.currentThreadId };
+
             btn.setOnClickListener(v -> {
-                String threadId = resolveThreadId(activity);
+                String threadId = resolveFromActivity(activity);
+                if (threadId == null) threadId = bound[0];
+                if (threadId == null) threadId = KeepUnsentMessagesHook.currentThreadId;
+                if (threadId == null) threadId = resolveThreadId(headerRoot);
                 if (threadId == null) {
                     Toast.makeText(activity, I18n(activity, R.string.ig_hide_chat_no_thread), Toast.LENGTH_SHORT).show();
                     return;
@@ -232,7 +239,7 @@ public class HideChatsHook {
     }
 
     // ── thread-id resolution (mirrors UnsentThreadButtonHook.resolveFromActivity — proven) ──
-    private String resolveThreadId(Activity activity) {
+    private String resolveFromActivity(Activity activity) {
         try {
             // 1. Intent extras (thread key usually passed here); depth 4.
             android.os.Bundle ex = activity.getIntent() != null ? activity.getIntent().getExtras() : null;
@@ -279,6 +286,47 @@ public class HideChatsHook {
                     if (v.getClass().getName().contains("DirectThreadKey")) return v;
                     Object r = scan(v, depth + 1, seen, maxDepth);
                     if (r != null) return r;
+                }
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    private String resolveThreadId(View header) {
+        String found = null;
+        View v = header;
+        int up = 0;
+        while (v != null && up++ < 8) {
+            try {
+                if (tagKeyId != 0) {
+                    Object t = v.getTag(tagKeyId);
+                    if (t != null) {
+                        String id = threadIdFromAny(t);
+                        if (id != null && found == null) found = id;
+                    }
+                }
+                Object plain = v.getTag();
+                if (plain != null) {
+                    String id = threadIdFromAny(plain);
+                    if (id != null && found == null) found = id;
+                }
+            } catch (Throwable ignored) {}
+            v = (v.getParent() instanceof View) ? (View) v.getParent() : null;
+        }
+        return found;
+    }
+
+    private String threadIdFromAny(Object obj) {
+        if (obj == null) return null;
+        String cn = obj.getClass().getName();
+        if (cn.contains("DirectThreadKey")) return firstStringField(obj);
+        try {
+            for (Field f : obj.getClass().getDeclaredFields()) {
+                if (java.lang.reflect.Modifier.isStatic(f.getModifiers())) continue;
+                if (f.getType().getName().contains("DirectThreadKey")) {
+                    f.setAccessible(true);
+                    Object k = f.get(obj);
+                    if (k != null) return firstStringField(k);
                 }
             }
         } catch (Throwable ignored) {}
