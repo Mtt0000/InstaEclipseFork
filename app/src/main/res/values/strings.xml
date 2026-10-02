@@ -537,4 +537,9 @@
     <string name="ig_update_later">Later</string>
     <string name="ig_update_error_message">Failed to check for updates. Please try again later.</string>
 
+
+    <string name="ig_dialog_hide_chats_mode">Hide Mode</string>
+    <string name="ig_dialog_hide_chats_mode_none">None</string>
+    <string name="ig_dialog_hide_chats_mode_eye">Eye Button</string>
+    <string name="ig_dialog_hide_chats_mode_long_back">Long Press Back Button</string>
 </resources>

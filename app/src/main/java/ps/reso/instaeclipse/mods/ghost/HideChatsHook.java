@@ -59,6 +59,13 @@ public class HideChatsHook {
                 if (!FeatureFlags.hideSpecificChats || HiddenThreads.isEmpty()) return;
                 Object r = param.getResult();
                 if (!(r instanceof java.util.List<?> list) || list.isEmpty()) return;
+
+                // Type safety check: ensure the list contains thread summaries
+                Object first = list.get(0);
+                if (first == null) return;
+                // DirectThreadStoreImpl lists usually contain DirectThread or DirectThreadSummary
+                if (!first.getClass().getName().contains("DirectThread")) return;
+
                 try {
                     java.util.List<Object> filtered = new java.util.ArrayList<>();
                     for (Object row : list) {
@@ -75,13 +82,24 @@ public class HideChatsHook {
         };
         try {
             int n = 0;
-            for (MethodData md : bridge.findMethod(FindMethod.create()
-                    .matcher(MethodMatcher.create().usingStrings(INBOX_ANCHOR)))) {
-                try { XposedBridge.hookMethod(md.getMethodInstance(classLoader), filter); n++; }
-                catch (Throwable ignored) {}
+            java.util.List<MethodData> anchorMethods = bridge.findMethod(FindMethod.create()
+                    .matcher(MethodMatcher.create().usingStrings(INBOX_ANCHOR)));
+
+            if (!anchorMethods.isEmpty()) {
+                String targetClassName = anchorMethods.get(0).getClassName();
+                // Find all methods returning java.util.List by loading the class and reflecting it
+                try {
+                    Class<?> targetClass = classLoader.loadClass(targetClassName);
+                    for (java.lang.reflect.Method m : targetClass.getDeclaredMethods()) {
+                        if (m.getReturnType() == java.util.List.class) {
+                            try { XposedBridge.hookMethod(m, filter); n++; }
+                            catch (Throwable ignored) {}
+                        }
+                    }
+                } catch (Throwable ignored) {}
             }
             if (n > 0) FeatureStatusTracker.setHooked("HideSpecificChats");
-            ModuleLog.line("(IE|HideChats) inbox filter hooked " + n + " method(s)");
+            ModuleLog.line("(IE|HideChats) inbox filter hooked " + n + " method(s) returning List in target class");
         } catch (Throwable t) {
             ModuleLog.line("(IE|HideChats) ⚠️ inbox filter: " + t.getMessage());
         }
@@ -150,12 +168,49 @@ public class HideChatsHook {
 
     private boolean tryInject(Activity activity) {
         try {
+            int mode = FeatureFlags.hideChatsMode;
+            if (mode == 0) return true; // None
+
             View header = threadHeaderId != 0 ? activity.findViewById(threadHeaderId) : null;
             if (header == null) return false;
 
+            View back = backButtonId != 0 ? activity.findViewById(backButtonId) : null;
+
+            final View headerRoot = header;
+            final String[] bound = { KeepUnsentMessagesHook.currentThreadId };
+
+            android.view.View.OnLongClickListener hideAction = v -> {
+                String threadId = resolveFromActivity(activity);
+                if (threadId == null) threadId = bound[0];
+                if (threadId == null) threadId = KeepUnsentMessagesHook.currentThreadId;
+                if (threadId == null) threadId = resolveThreadId(headerRoot);
+                if (threadId == null) {
+                    Toast.makeText(activity, I18n(activity, R.string.ig_hide_chat_no_thread), Toast.LENGTH_SHORT).show();
+                    return true;
+                }
+                boolean nowHidden = HiddenThreads.toggle(threadId, threadTitle(activity));
+                Toast.makeText(activity,
+                        I18n(activity, nowHidden ? R.string.ig_hide_chat_hidden : R.string.ig_hide_chat_unhidden),
+                        Toast.LENGTH_SHORT).show();
+                ModuleLog.line("(IE|HideChats) toggled thread=" + threadId + " hidden=" + nowHidden);
+                return true;
+            };
+
+            if (mode == 2) {
+                // Long press back button
+                if (back != null) {
+                    if (back.getTag(backButtonId) == null) { // prevent multiple listener attachments if we inject again
+                        back.setOnLongClickListener(hideAction);
+                        back.setTag(backButtonId, true);
+                    }
+                    return true;
+                }
+                return false;
+            }
+
+            // mode 1: Eye button
             ViewGroup target;
             int insertAt;
-            View back = backButtonId != 0 ? activity.findViewById(backButtonId) : null;
             if (back != null && back.getParent() instanceof ViewGroup) {
                 target = (ViewGroup) back.getParent();
                 int bi = target.indexOfChild(back);
@@ -184,24 +239,8 @@ public class HideChatsHook {
             lp.gravity = Gravity.CENTER_VERTICAL;
             btn.setLayoutParams(lp);
 
-            final View headerRoot = header;
-            final String[] bound = { KeepUnsentMessagesHook.currentThreadId };
+            btn.setOnClickListener(v -> hideAction.onLongClick(v));
 
-            btn.setOnClickListener(v -> {
-                String threadId = resolveFromActivity(activity);
-                if (threadId == null) threadId = bound[0];
-                if (threadId == null) threadId = KeepUnsentMessagesHook.currentThreadId;
-                if (threadId == null) threadId = resolveThreadId(headerRoot);
-                if (threadId == null) {
-                    Toast.makeText(activity, I18n(activity, R.string.ig_hide_chat_no_thread), Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                boolean nowHidden = HiddenThreads.toggle(threadId, threadTitle(activity));
-                Toast.makeText(activity,
-                        I18n(activity, nowHidden ? R.string.ig_hide_chat_hidden : R.string.ig_hide_chat_unhidden),
-                        Toast.LENGTH_SHORT).show();
-                ModuleLog.line("(IE|HideChats) toggled thread=" + threadId + " hidden=" + nowHidden);
-            });
             try { target.addView(btn, Math.min(insertAt, target.getChildCount())); }
             catch (Throwable t) { target.addView(btn); }
             return true;

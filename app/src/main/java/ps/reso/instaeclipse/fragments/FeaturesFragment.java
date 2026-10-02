@@ -107,6 +107,8 @@ public class FeaturesFragment extends Fragment {
                         loadDownloaderMenu();
                     } else if ("quality".equals(currentMenu)) {
                         loadQualityMenu();
+                    } else if ("hidechats".equals(currentMenu)) {
+                        loadHideChatsMenu();
                     } else if (adapter != null) {
                         adapter.notifyDataSetChanged();
                     }
@@ -932,20 +934,64 @@ public class FeaturesFragment extends Fragment {
         currentMenu = "lock";
     }
 
+    private String hideChatsModeLabel(int m) {
+        if (m == 1) return getString(R.string.ig_dialog_hide_chats_mode_eye);
+        if (m == 2) return getString(R.string.ig_dialog_hide_chats_mode_long_back);
+        return getString(R.string.ig_dialog_hide_chats_mode_none);
+    }
+
     /** Hide Specific Chats (Privacy). The companion app toggles the feature; hiding/unhiding a
      *  specific chat is done from inside Instagram. */
     private void loadHideChatsMenu() {
         List<Object> defs = new ArrayList<>();
+        int currentMode = localCache.getInt("hideChatsMode", 0);
 
         defs.add(getString(R.string.feat_features));
         defs.add(Arrays.asList(
-                createSwitch(R.drawable.ic_eye_off, "#5E5CE6", getString(R.string.ig_dialog_misc_hide_chats), "hideSpecificChats")
+                createSwitch(R.drawable.ic_eye_off, "#5E5CE6", getString(R.string.ig_dialog_misc_hide_chats), "hideSpecificChats"),
+                createClickable(R.drawable.ic_settings_gear, "#5E5CE6",
+                        getString(R.string.ig_dialog_hide_chats_mode) + ": " + hideChatsModeLabel(currentMode),
+                        () -> pickHideChatsMode(currentMode))
         ));
 
         // Note: hiding/unhiding a specific chat is done from inside Instagram.
 
         showMenu(getString(R.string.ig_hide_chats_title), defs);
         currentMenu = "hidechats";
+    }
+
+    private void pickHideChatsMode(int current) {
+        String[] labels = {
+                getString(R.string.ig_dialog_hide_chats_mode_none),
+                getString(R.string.ig_dialog_hide_chats_mode_eye),
+                getString(R.string.ig_dialog_hide_chats_mode_long_back)
+        };
+        int[] values = {0, 1, 2};
+
+        int sel = 0;
+        for (int i = 0; i < values.length; i++) {
+            if (values[i] == current) { sel = i; break; }
+        }
+
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(getString(R.string.ig_dialog_hide_chats_mode))
+                .setSingleChoiceItems(labels, sel, (dialog, which) -> {
+                    int value = values[which];
+                    SharedPreferences.Editor ed = localCache.edit();
+                    ed.putInt("hideChatsMode", value);
+                    ed.commit();
+                    makeLocalCacheWorldReadable();
+
+                    Intent b = new Intent("ps.reso.instaeclipse.ACTION_UPDATE_PREF_INT");
+                    b.putExtra("key", "hideChatsMode");
+                    b.putExtra("value", value);
+                    requireContext().sendBroadcast(b);
+
+                    dialog.dismiss();
+                    loadHideChatsMenu();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 
     private void loadLocationMenu() {

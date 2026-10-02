@@ -535,4 +535,9 @@
     <string name="ig_story_download_video_music">Pobierz wideo z muzyką</string>
     <string name="ig_story_cache_clear_confirm">Usunąć wszystkie zapisane relacje z pamięci podręcznej? Tej operacji nie można cofnąć.</string>
     <string name="ig_story_cache_cleared">Zapisane relacje zostały usunięte</string>
+
+    <string name="ig_dialog_hide_chats_mode">Hide Mode</string>
+    <string name="ig_dialog_hide_chats_mode_none">None</string>
+    <string name="ig_dialog_hide_chats_mode_eye">Eye Button</string>
+    <string name="ig_dialog_hide_chats_mode_long_back">Long Press Back Button</string>
 </resources>
