@@ -62,8 +62,6 @@ public class HideChatsHook {
                 try {
                     java.util.List<Object> filtered = new java.util.ArrayList<>();
                     for (Object row : list) {
-                        if (row == null) { filtered.add(row); continue; }
-                        if (!row.getClass().getName().contains("ThreadSummary") && !row.getClass().getName().contains("DirectThread")) { filtered.add(row); continue; } // safe fallback
                         String id = threadIdOfRow(row);
                         if (id == null || !HiddenThreads.isHidden(id)) {
                             filtered.add(row);
@@ -77,33 +75,10 @@ public class HideChatsHook {
         };
         try {
             int n = 0;
-            // 1. Target the known summary builder
-            java.util.List<MethodData> methods = bridge.findMethod(FindMethod.create()
-                    .matcher(MethodMatcher.create().usingStrings(INBOX_ANCHOR)));
-
-            // 2. Expand search: hook ALL methods in the same class that return List (to catch live updates/refreshes)
-            if (!methods.isEmpty()) {
-                String declaringClass = methods.get(0).getClassName();
-                java.util.List<MethodData> allClassMethods = bridge.findMethod(FindMethod.create()
-                        .matcher(MethodMatcher.create()
-                            .declaredClass(declaringClass)
-                            .returnType(java.util.List.class.getName())));
-
-                for (MethodData md : allClassMethods) {
-                    try {
-                        java.lang.reflect.Method m = md.getMethodInstance(classLoader);
-                        if (m != null) {
-                            XposedBridge.hookMethod(m, filter);
-                            n++;
-                        }
-                    } catch (Throwable ignored) {}
-                }
-            } else {
-                // Fallback if INBOX_ANCHOR somehow fails
-                for (MethodData md : methods) {
-                    try { XposedBridge.hookMethod(md.getMethodInstance(classLoader), filter); n++; }
-                    catch (Throwable ignored) {}
-                }
+            for (MethodData md : bridge.findMethod(FindMethod.create()
+                    .matcher(MethodMatcher.create().usingStrings(INBOX_ANCHOR)))) {
+                try { XposedBridge.hookMethod(md.getMethodInstance(classLoader), filter); n++; }
+                catch (Throwable ignored) {}
             }
             if (n > 0) FeatureStatusTracker.setHooked("HideSpecificChats");
             ModuleLog.line("(IE|HideChats) inbox filter hooked " + n + " method(s)");
@@ -135,7 +110,7 @@ public class HideChatsHook {
     private void installHeaderButton(ClassLoader classLoader) {
         XC_MethodHook resume = new XC_MethodHook() {
             @Override protected void afterHookedMethod(MethodHookParam param) {
-                if (FeatureFlags.hideChatsMode == 0) return;
+                if (!FeatureFlags.hideSpecificChats) return;
                 final Activity a = (Activity) param.thisObject;
                 a.runOnUiThread(() -> registerListener(a));
             }
@@ -175,43 +150,12 @@ public class HideChatsHook {
 
     private boolean tryInject(Activity activity) {
         try {
-            if (FeatureFlags.hideChatsMode == 0) return true; // None
-
             View header = threadHeaderId != 0 ? activity.findViewById(threadHeaderId) : null;
             if (header == null) return false;
 
-            View back = backButtonId != 0 ? activity.findViewById(backButtonId) : null;
-
-            final View headerRoot = header;
-            final String[] bound = { KeepUnsentMessagesHook.currentThreadId };
-
-            if (FeatureFlags.hideChatsMode == 2) {
-                // Long press back button mode
-                if (back == null) return false;
-
-                // Set long click listener on back button
-                back.setOnLongClickListener(v -> {
-                    String threadId = resolveFromActivity(activity);
-                    if (threadId == null) threadId = bound[0];
-                    if (threadId == null) threadId = KeepUnsentMessagesHook.currentThreadId;
-                    if (threadId == null) threadId = resolveThreadId(headerRoot);
-                    if (threadId == null) {
-                        Toast.makeText(activity, I18n(activity, R.string.ig_hide_chat_no_thread), Toast.LENGTH_SHORT).show();
-                        return true;
-                    }
-                    boolean nowHidden = HiddenThreads.toggle(threadId, threadTitle(activity));
-                    Toast.makeText(activity,
-                            I18n(activity, nowHidden ? R.string.ig_hide_chat_hidden : R.string.ig_hide_chat_unhidden),
-                            Toast.LENGTH_SHORT).show();
-                    ModuleLog.line("(IE|HideChats) toggled thread=" + threadId + " hidden=" + nowHidden);
-                    return true;
-                });
-                return true;
-            }
-
-            // hideChatsMode == 1 (Eye Button)
             ViewGroup target;
             int insertAt;
+            View back = backButtonId != 0 ? activity.findViewById(backButtonId) : null;
             if (back != null && back.getParent() instanceof ViewGroup) {
                 target = (ViewGroup) back.getParent();
                 int bi = target.indexOfChild(back);
@@ -239,6 +183,9 @@ public class HideChatsHook {
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(sz, sz);
             lp.gravity = Gravity.CENTER_VERTICAL;
             btn.setLayoutParams(lp);
+
+            final View headerRoot = header;
+            final String[] bound = { KeepUnsentMessagesHook.currentThreadId };
 
             btn.setOnClickListener(v -> {
                 String threadId = resolveFromActivity(activity);

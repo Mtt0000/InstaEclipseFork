@@ -1327,29 +1327,6 @@ public class DialogUtils {
             SettingsManager.saveAllFlags();
         });
         hideCard.addView(hideChats);
-
-        // Hide Mode selector
-        String[] modes = {
-                I18n.t(context, R.string.ig_hide_chats_mode_none),
-                I18n.t(context, R.string.ig_hide_chats_mode_eye),
-                I18n.t(context, R.string.ig_hide_chats_mode_long_press)
-        };
-        View[] modeRowHolder = new View[1];
-        modeRowHolder[0] = createMenuRow(context, 0, I18n.t(context, R.string.ig_hide_chats_mode),
-                modes[Math.min(FeatureFlags.hideChatsMode, 2)], () -> {
-            new android.app.AlertDialog.Builder(context)
-                    .setTitle(I18n.t(context, R.string.ig_hide_chats_mode))
-                    .setSingleChoiceItems(modes, FeatureFlags.hideChatsMode, (dialog, which) -> {
-                        FeatureFlags.hideChatsMode = which;
-                        SettingsManager.saveAllFlags();
-                        if (modeRowHolder[0] != null && modeRowHolder[0] instanceof ViewGroup && ((ViewGroup)modeRowHolder[0]).getChildCount() > 1) {
-                            ((android.widget.TextView) ((ViewGroup)modeRowHolder[0]).getChildAt(1)).setText(modes[which]);
-                        }
-                        dialog.dismiss();
-                    }).show();
-        });
-        hideCard.addView(modeRowHolder[0]);
-
         hideCard.addView(createActionRow(context, R.drawable.ic_eye,
                 I18n.t(context, R.string.ig_hide_chats_manage), A_PRIVACY, v -> showHiddenChats(context)));
         layout.addView(hideCard);
