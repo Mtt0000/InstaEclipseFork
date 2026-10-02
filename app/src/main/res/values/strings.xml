@@ -315,6 +315,10 @@
     <string name="ig_dialog_misc_lock_fingerprint">Use fingerprint to unlock</string>
     <string name="ig_hide_chats_title">Hide Specific Chats</string>
     <string name="ig_dialog_misc_hide_chats">Hide Specific Chats</string>
+    <string name="ig_hide_chats_mode">Hide Button Mode</string>
+    <string name="ig_hide_chats_mode_none">None</string>
+    <string name="ig_hide_chats_mode_eye">Eye button</string>
+    <string name="ig_hide_chats_mode_long_press">Long press back button</string>
     <string name="ig_hide_chats_manage">Manage hidden chats</string>
     <string name="ig_hide_chats_empty">No hidden chats. Open a chat and tap the eye-off button to hide it.</string>
     <string name="ig_hide_chats_unhide">Unhide</string>
