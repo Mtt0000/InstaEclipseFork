@@ -939,18 +939,7 @@ public class FeaturesFragment extends Fragment {
 
         defs.add(getString(R.string.feat_features));
         defs.add(Arrays.asList(
-                createSwitch(R.drawable.ic_eye_off, "#5E5CE6", getString(R.string.ig_dialog_misc_hide_chats), "hideSpecificChats"),
-                createClickable(R.drawable.ic_eye_off, "#5E5CE6", getString(R.string.ig_hide_chats_mode) + ": " +
-                    new String[]{getString(R.string.ig_hide_chats_mode_none), getString(R.string.ig_hide_chats_mode_eye), getString(R.string.ig_hide_chats_mode_long_press)}[Math.min(ps.reso.instaeclipse.utils.feature.FeatureFlags.hideChatsMode, 2)], () -> {
-                        new androidx.appcompat.app.AlertDialog.Builder(requireContext())
-                                .setTitle(getString(R.string.ig_hide_chats_mode))
-                                .setSingleChoiceItems(new String[]{getString(R.string.ig_hide_chats_mode_none), getString(R.string.ig_hide_chats_mode_eye), getString(R.string.ig_hide_chats_mode_long_press)}, ps.reso.instaeclipse.utils.feature.FeatureFlags.hideChatsMode, (dialog, which) -> {
-                                    ps.reso.instaeclipse.utils.feature.FeatureFlags.hideChatsMode = which;
-                                    ps.reso.instaeclipse.utils.core.SettingsManager.saveAllFlags();
-                                    dialog.dismiss();
-                                    loadHideChatsMenu();
-                                }).show();
-                    })
+                createSwitch(R.drawable.ic_eye_off, "#5E5CE6", getString(R.string.ig_dialog_misc_hide_chats), "hideSpecificChats")
         ));
 
         // Note: hiding/unhiding a specific chat is done from inside Instagram.
