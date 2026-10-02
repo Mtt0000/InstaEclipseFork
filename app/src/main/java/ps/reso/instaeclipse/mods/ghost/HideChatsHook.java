@@ -60,10 +60,15 @@ public class HideChatsHook {
                 Object r = param.getResult();
                 if (!(r instanceof java.util.List<?> list) || list.isEmpty()) return;
                 try {
-                    java.util.Iterator<?> it = ((java.util.List<?>) r).iterator();
-                    while (it.hasNext()) {
-                        String id = threadIdOfRow(it.next());
-                        if (id != null && HiddenThreads.isHidden(id)) it.remove();
+                    java.util.List<Object> filtered = new java.util.ArrayList<>();
+                    for (Object row : list) {
+                        String id = threadIdOfRow(row);
+                        if (id == null || !HiddenThreads.isHidden(id)) {
+                            filtered.add(row);
+                        }
+                    }
+                    if (filtered.size() != list.size()) {
+                        param.setResult(filtered);
                     }
                 } catch (Throwable ignored) {}
             }
