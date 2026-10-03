@@ -506,17 +506,22 @@ public class HideChatsHook {
 
 
 
+
     private View findBackButton(View root) {
         if (root == null) return null;
-        if (root instanceof android.widget.ImageView && (root.isClickable() || root.getContentDescription() != null)) return root;
+        if (root instanceof android.widget.ImageView) {
+            CharSequence desc = root.getContentDescription();
+            if (desc != null) {
+                String d = desc.toString().toLowerCase();
+                if (d.contains("back") || d.contains("indietro") || d.contains("volver") || d.contains("retour") || d.contains("zurück")) {
+                    return root;
+                }
+            }
+        }
         if (root instanceof ViewGroup) {
             ViewGroup vg = (ViewGroup) root;
             for (int i = 0; i < vg.getChildCount(); i++) {
-                View child = vg.getChildAt(i);
-                if (child instanceof android.widget.ImageView && (child.isClickable() || child.getContentDescription() != null)) {
-                    return child;
-                }
-                View found = findBackButton(child);
+                View found = findBackButton(vg.getChildAt(i));
                 if (found != null) return found;
             }
         }
