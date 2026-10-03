@@ -140,7 +140,9 @@ public class UnsentThreadButtonHook {
             // left-aligned container, then the right-side action buttons.
             ViewGroup target;
             int insertAt;
-            View back = backButtonId != 0 ? activity.findViewById(backButtonId) : null;
+            View backTemp = backButtonId != 0 ? activity.findViewById(backButtonId) : null;
+            if (backTemp == null) backTemp = findBackButton(header);
+            final View back = backTemp;
             if (back != null && back.getParent() instanceof ViewGroup) {
                 target = (ViewGroup) back.getParent();
                 int bi = target.indexOfChild(back);
@@ -325,6 +327,28 @@ public class UnsentThreadButtonHook {
         return null;
     }
 
+
+
+    private View findBackButton(View root) {
+        if (root == null) return null;
+        if (root instanceof android.widget.ImageView) {
+            CharSequence desc = root.getContentDescription();
+            if (desc != null) {
+                String d = desc.toString().toLowerCase();
+                if (d.contains("back") || d.contains("indietro") || d.contains("volver") || d.contains("retour") || d.contains("zurück")) {
+                    return root;
+                }
+            }
+        }
+        if (root instanceof ViewGroup) {
+            ViewGroup vg = (ViewGroup) root;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                View found = findBackButton(vg.getChildAt(i));
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
     private static int dp(Activity a, int v) {
         return Math.round(v * a.getResources().getDisplayMetrics().density);
     }
