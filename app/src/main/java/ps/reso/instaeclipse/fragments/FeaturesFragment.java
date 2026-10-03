@@ -973,7 +973,7 @@ public class FeaturesFragment extends Fragment {
             if (values[i] == current) { sel = i; break; }
         }
 
-        new MaterialAlertDialogBuilder(requireContext())
+        new androidx.appcompat.app.AlertDialog.Builder(requireContext())
                 .setTitle(getString(R.string.ig_dialog_hide_chats_mode))
                 .setSingleChoiceItems(labels, sel, (dialog, which) -> {
                     int value = values[which];
@@ -984,6 +984,40 @@ public class FeaturesFragment extends Fragment {
 
                     Intent b = new Intent("ps.reso.instaeclipse.ACTION_UPDATE_PREF_INT");
                     b.putExtra("key", "hideChatsMode");
+                    b.putExtra("value", value);
+                    requireContext().sendBroadcast(b);
+
+                    dialog.dismiss();
+                    if (value == 2) {
+                        pickHideChatsLongPressTime(localCache.getInt("hideChatsLongPressTime", 3));
+                    } else {
+                        loadHideChatsMenu();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void pickHideChatsLongPressTime(int current) {
+        String[] labels = {"1s", "2s", "3s", "4s", "5s"};
+        int[] values = {1, 2, 3, 4, 5};
+
+        int sel = 2; // Default 3s
+        for (int i = 0; i < values.length; i++) {
+            if (values[i] == current) { sel = i; break; }
+        }
+
+        new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle("Long Press Delay")
+                .setSingleChoiceItems(labels, sel, (dialog, which) -> {
+                    int value = values[which];
+                    SharedPreferences.Editor ed = localCache.edit();
+                    ed.putInt("hideChatsLongPressTime", value);
+                    ed.commit();
+                    makeLocalCacheWorldReadable();
+
+                    Intent b = new Intent("ps.reso.instaeclipse.ACTION_UPDATE_PREF_INT");
+                    b.putExtra("key", "hideChatsLongPressTime");
                     b.putExtra("value", value);
                     requireContext().sendBroadcast(b);
 
