@@ -22,6 +22,8 @@ import ps.reso.instaeclipse.utils.log.ModuleLog;
 
 public class FakeGeneralModeHook {
     private static final String TAG_OVERLAY = "IE_FAKE_GENERAL_OVERLAY";
+    private static final String TAG_GHOST_GENERAL = "IE_GHOST_GENERAL";
+    private static final String TAG_GHOST_PRIMARY = "IE_GHOST_PRIMARY";
     private static final Set<View> watchedDecors = Collections.newSetFromMap(new WeakHashMap<>());
 
     // Using a boolean flag to track if we're supposed to show the overlay
@@ -54,8 +56,6 @@ public class FakeGeneralModeHook {
             while (!stack.isEmpty()) {
                 View v = stack.pop();
 
-                // IG uses compose views now or complex wrappers for buttons.
-                // We must check if the text is 'General' or 'Primary'
                 boolean isGeneral = false;
                 boolean isPrimary = false;
 
@@ -73,10 +73,13 @@ public class FakeGeneralModeHook {
                     if (desc.toString().equalsIgnoreCase("Primary")) isPrimary = true;
                 }
 
+                // Do not re-process our own ghost views
+                if (TAG_GHOST_GENERAL.equals(v.getTag())) isGeneral = false;
+                if (TAG_GHOST_PRIMARY.equals(v.getTag())) isPrimary = false;
+
                 if (isGeneral) generalBtn = findClickableParent(v);
                 if (isPrimary) primaryBtn = findClickableParent(v);
 
-                // Identify the main list container (usually a RecyclerView in a FrameLayout)
                 if (v instanceof androidx.recyclerview.widget.RecyclerView) {
                     if (v.getParent() instanceof ViewGroup) {
                         listContainer = (ViewGroup) v.getParent();
@@ -90,7 +93,6 @@ public class FakeGeneralModeHook {
             }
 
             if (listContainer != null) {
-                // Ensure overlay exists
                 View overlay = listContainer.findViewWithTag(TAG_OVERLAY);
                 if (overlay == null) {
                     overlay = createOverlay(a);
@@ -105,7 +107,6 @@ public class FakeGeneralModeHook {
                     if (isFakeGeneralActive) {
                         overlay.setVisibility(View.VISIBLE);
                         overlay.bringToFront();
-                        // intercept touch in list container so you can't scroll the list underneath
                         listContainer.setOnTouchListener((view, event) -> true);
                     } else {
                         overlay.setVisibility(View.GONE);
@@ -113,27 +114,69 @@ public class FakeGeneralModeHook {
                     }
                 }
 
-                if (generalBtn != null && primaryBtn != null) {
-                    // Overwrite the click behavior. Note: standard click listeners might get overridden by IG.
-                    // We hook onto touch events to act before click processing.
-                    final View finalGeneral = generalBtn;
-                    finalGeneral.setOnTouchListener((view, event) -> {
-                        if (event.getAction() == android.view.MotionEvent.ACTION_UP) {
-                            isFakeGeneralActive = true;
-                            sweep(a);
-                        }
-                        return true; // We consume the touch
-                    });
+                // Inject transparent ghost buttons directly over the real ones in their FrameLayout parents
+                if (generalBtn != null && generalBtn.getParent() instanceof ViewGroup) {
+                    ViewGroup parent = (ViewGroup) generalBtn.getParent();
+                    if (parent.findViewWithTag(TAG_GHOST_GENERAL) == null) {
+                        View ghost = new View(a);
+                        ghost.setTag(TAG_GHOST_GENERAL);
+                        ghost.setBackgroundColor(Color.TRANSPARENT);
+                        ghost.setClickable(true);
 
-                    final View finalPrimary = primaryBtn;
-                    finalPrimary.setOnTouchListener((view, event) -> {
-                        if (event.getAction() == android.view.MotionEvent.ACTION_UP) {
-                            isFakeGeneralActive = false;
-                            view.performClick();
+                        final View finalGeneral = generalBtn;
+                        ghost.setOnClickListener(view -> {
+                            isFakeGeneralActive = true;
+                            // Update selection visually
+                            if (finalGeneral instanceof ViewGroup) {
+                                for(int i=0; i<((ViewGroup)finalGeneral).getChildCount(); i++) {
+                                     ((ViewGroup)finalGeneral).getChildAt(i).setSelected(true);
+                                }
+                            }
                             sweep(a);
-                        }
-                        return false;
-                    });
+                        });
+
+                        ViewGroup.LayoutParams lp = generalBtn.getLayoutParams();
+                        parent.addView(ghost, parent.indexOfChild(generalBtn) + 1, lp);
+
+                        // Force real button to ignore clicks
+                        generalBtn.setClickable(false);
+                        generalBtn.setOnTouchListener((view, event) -> true);
+                        ModuleLog.line("(IE|FakeGeneral) Ghost General button injected.");
+                    }
+                }
+
+                if (primaryBtn != null && primaryBtn.getParent() instanceof ViewGroup) {
+                    ViewGroup parent = (ViewGroup) primaryBtn.getParent();
+                    if (parent.findViewWithTag(TAG_GHOST_PRIMARY) == null) {
+                        View ghost = new View(a);
+                        ghost.setTag(TAG_GHOST_PRIMARY);
+                        ghost.setBackgroundColor(Color.TRANSPARENT);
+                        ghost.setClickable(true);
+
+                        final View finalPrimary = primaryBtn;
+                        ghost.setOnClickListener(view -> {
+                            isFakeGeneralActive = false;
+
+                            // Re-enable clicks temporarily to trigger real logic
+                            finalPrimary.setClickable(true);
+                            finalPrimary.setOnTouchListener(null);
+                            finalPrimary.performClick();
+
+                            // Immediately disable again
+                            finalPrimary.setClickable(false);
+                            finalPrimary.setOnTouchListener((v, e) -> true);
+
+                            sweep(a);
+                        });
+
+                        ViewGroup.LayoutParams lp = primaryBtn.getLayoutParams();
+                        parent.addView(ghost, parent.indexOfChild(primaryBtn) + 1, lp);
+
+                        // Force real button to ignore clicks
+                        primaryBtn.setClickable(false);
+                        primaryBtn.setOnTouchListener((view, event) -> true);
+                        ModuleLog.line("(IE|FakeGeneral) Ghost Primary button injected.");
+                    }
                 }
             }
         } catch (Throwable t) {
@@ -151,7 +194,7 @@ public class FakeGeneralModeHook {
                 break;
             }
         }
-        return view;
+        return view; // fallback
     }
 
     private static View createOverlay(Context ctx) {
