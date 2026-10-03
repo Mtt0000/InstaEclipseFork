@@ -43,11 +43,14 @@ import ps.reso.instaeclipse.utils.log.ModuleLog;
  */
 public class HideChatsHook {
 
+    public static volatile String currentThreadId = null;
+
     private static final String TAG = "ie_hidechat_btn";
     private static final String INBOX_ANCHOR = "DirectThreadStoreImpl.getSortedCopyOfThreadSummaries";
     private static int threadHeaderId, backButtonId, tagKeyId;
 
     public void install(DexKitBridge bridge, ClassLoader classLoader) {
+        hookCurrentThread(bridge, classLoader);
         installInboxFilter(bridge, classLoader);
         installHeaderButton(classLoader);
     }
@@ -213,7 +216,8 @@ public class HideChatsHook {
             final String[] bound = { KeepUnsentMessagesHook.currentThreadId };
 
             android.view.View.OnLongClickListener hideAction = v -> {
-                String threadId = resolveFromActivity(activity);
+                String threadId = HideChatsHook.currentThreadId;
+                if (threadId == null) threadId = resolveFromActivity(activity);
                 if (threadId == null) threadId = bound[0];
                 if (threadId == null) threadId = KeepUnsentMessagesHook.currentThreadId;
                 if (threadId == null) threadId = resolveThreadId(headerRoot);
@@ -446,6 +450,53 @@ public class HideChatsHook {
                 f.setAccessible(true);
                 Object v = f.get(o);
                 if (v instanceof String s && !s.isEmpty()) return s;
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    private void hookCurrentThread(DexKitBridge bridge, ClassLoader classLoader) {
+        try {
+            java.util.List<MethodData> methods = bridge.findMethod(FindMethod.create()
+                    .matcher(MethodMatcher.create()
+                            .usingStrings("igThreadIgid")
+                            .paramTypes("com.instagram.model.direct.DirectThreadKey", "boolean")));
+            XC_MethodHook hook = new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) {
+                    if (param.args.length > 0) {
+                        String id = threadIdOf(param.args[0]);
+                        Object flag = param.args.length > 1 ? param.args[1] : null;
+                        if (id != null && Boolean.TRUE.equals(flag)) {
+                            currentThreadId = id;
+                            ModuleLog.line("(IE|HideChats|PROBE) igThreadIgid tracked id=" + id);
+                        }
+                    }
+                }
+            };
+            int n = 0;
+            for (MethodData md : methods) {
+                try { XposedBridge.hookMethod(md.getMethodInstance(classLoader), hook); n++; }
+                catch (Throwable ignored) {}
+            }
+            if (n > 0) {
+                ModuleLog.line("(IE|HideChats) current-thread tracker hooked " + n + " method(s)");
+            }
+        } catch (Throwable t) {
+            ModuleLog.line("(IE|HideChats) ⚠️ current-thread tracker: " + t.getMessage());
+        }
+    }
+
+    private static String threadIdOf(Object dtk) {
+        if (dtk == null) return null;
+        try {
+            for (Class<?> c = dtk.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+                for (Field f : c.getDeclaredFields()) {
+                    if (f.getType() != String.class || java.lang.reflect.Modifier.isStatic(f.getModifiers())) continue;
+                    f.setAccessible(true);
+                    Object v = f.get(dtk);
+                    if (v instanceof String && !((String) v).isEmpty()) return (String) v;
+                }
             }
         } catch (Throwable ignored) {}
         return null;
