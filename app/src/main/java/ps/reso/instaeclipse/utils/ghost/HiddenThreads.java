@@ -50,7 +50,12 @@ public class HiddenThreads {
             JSONObject o = new JSONObject(new String(b, StandardCharsets.UTF_8));
             for (java.util.Iterator<String> it = o.keys(); it.hasNext(); ) {
                 String k = it.next();
-                map.put(k, o.optString(k, ""));
+                if (k != null) {
+                    k = k.trim();
+                    if (!k.isEmpty()) {
+                        map.put(k, o.optString(k, ""));
+                    }
+                }
             }
         } catch (Throwable t) {
             ModuleLog.line("(IE|HiddenThreads) load failed: " + t);
@@ -72,14 +77,18 @@ public class HiddenThreads {
     }
 
     public static synchronized boolean isHidden(String threadId) {
-        if (threadId == null || threadId.isEmpty()) return false;
+        if (threadId == null) return false;
+        threadId = threadId.trim();
+        if (threadId.isEmpty()) return false;
         ensureLoaded();
         return map.containsKey(threadId);
     }
 
     /** Toggles hidden state; returns the NEW state (true = now hidden). */
     public static synchronized boolean toggle(String threadId, String title) {
-        if (threadId == null || threadId.isEmpty()) return false;
+        if (threadId == null) return false;
+        threadId = threadId.trim();
+        if (threadId.isEmpty()) return false;
         ensureLoaded();
         boolean nowHidden;
         if (map.containsKey(threadId)) { map.remove(threadId); nowHidden = false; }
@@ -89,6 +98,9 @@ public class HiddenThreads {
     }
 
     public static synchronized void unhide(String threadId) {
+        if (threadId == null) return;
+        threadId = threadId.trim();
+        if (threadId.isEmpty()) return;
         ensureLoaded();
         if (map.remove(threadId) != null) persist();
     }

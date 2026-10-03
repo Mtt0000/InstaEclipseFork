@@ -520,4 +520,9 @@
     <string name="ig_story_download_video_music">Télécharger la vidéo avec musique</string>
     <string name="ig_story_cache_clear_confirm">Supprimer toutes les stories en cache ? Cette action est irréversible.</string>
     <string name="ig_story_cache_cleared">Stories en cache supprimées</string>
+
+    <string name="ig_dialog_hide_chats_mode">Hide Mode</string>
+    <string name="ig_dialog_hide_chats_mode_none">None</string>
+    <string name="ig_dialog_hide_chats_mode_eye">Eye Button</string>
+    <string name="ig_dialog_hide_chats_mode_long_back">Long Press Back Button</string>
 </resources>

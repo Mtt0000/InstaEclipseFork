@@ -419,4 +419,9 @@
     <string name="ig_update_error_message">Impossibile verificare gli aggiornamenti. Riprova più tardi.</string>
     <string name="ig_story_cache_clear_confirm">Eliminare tutte le storie in cache? L\'operazione non può essere annullata.</string>
     <string name="ig_story_cache_cleared">Storie in cache eliminate</string>
+
+    <string name="ig_dialog_hide_chats_mode">Modalità Nascondi</string>
+    <string name="ig_dialog_hide_chats_mode_none">Nessuna</string>
+    <string name="ig_dialog_hide_chats_mode_eye">Pulsante Occhio</string>
+    <string name="ig_dialog_hide_chats_mode_long_back">Pressione Lunga Tasto Indietro</string>
 </resources>
