@@ -7,6 +7,7 @@ public class FeatureFlags {
 
     // Ghost Mode
     public static boolean isGhostModeEnabled = false;
+    public static boolean isFakeGeneralModeEnabled = false;
     public static boolean isGhostSeen = false;
     public static boolean isGhostTyping = false;
     public static boolean isGhostScreenshot = false;
