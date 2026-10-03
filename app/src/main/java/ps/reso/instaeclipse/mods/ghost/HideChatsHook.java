@@ -61,10 +61,15 @@ public class HideChatsHook {
                 if (!(r instanceof java.util.List<?> list) || list.isEmpty()) return;
 
                 // Type safety check: ensure the list contains thread summaries
-                Object first = list.get(0);
-                if (first == null) return;
-                // DirectThreadStoreImpl lists usually contain DirectThread or DirectThreadSummary
-                if (!first.getClass().getName().contains("DirectThread")) return;
+                boolean foundValidId = false;
+                for (int i = 0; i < Math.min(list.size(), 5); i++) {
+                    Object item = list.get(i);
+                    if (item != null && (item.getClass().getName().contains("DirectThread") || threadIdOfRow(item) != null)) {
+                        foundValidId = true;
+                        break;
+                    }
+                }
+                if (!foundValidId) return;
 
                 try {
                     java.util.List<Object> filtered = new java.util.ArrayList<>();
@@ -116,12 +121,40 @@ public class HideChatsHook {
                     f.setAccessible(true);
                     Object key = f.get(row);
                     String id = firstStringField(key);
-                    if (id != null) return id;
+                    if (id != null) return sanitizeId(id);
+                }
+                c = c.getSuperclass();
+            }
+
+            // Fallback for newer Instagram versions where thread ID might be a direct String field (e.g. mThreadId)
+            c = row.getClass();
+            while (c != null && c != Object.class) {
+                for (Field f : c.getDeclaredFields()) {
+                    if (f.getType() == String.class) {
+                        String name = f.getName().toLowerCase();
+                        if (name.contains("thread") && name.contains("id")) {
+                            f.setAccessible(true);
+                            Object v = f.get(row);
+                            if (v instanceof String s && !s.isEmpty()) return sanitizeId(s);
+                        }
+                    }
                 }
                 c = c.getSuperclass();
             }
         } catch (Throwable ignored) {}
         return null;
+    }
+
+    private static String sanitizeId(String id) {
+        if (id == null) return null;
+        id = id.trim();
+        id = id.replace("\"", "");
+        id = id.replace("'", "");
+        id = id.replace("{", "");
+        id = id.replace("}", "");
+        id = id.replace("[", "");
+        id = id.replace("]", "");
+        return id.isEmpty() ? null : id;
     }
 
     // ── 2. Hide/unhide button in the thread header ─────────────────────────────
@@ -200,7 +233,35 @@ public class HideChatsHook {
                 // Long press back button
                 if (back != null) {
                     if (back.getTag(backButtonId) == null) { // prevent multiple listener attachments if we inject again
-                        back.setOnLongClickListener(hideAction);
+                        back.setOnTouchListener(new android.view.View.OnTouchListener() {
+                            private android.os.Handler handler = new android.os.Handler();
+                            private boolean longPressTriggered = false;
+                            private Runnable runnable = new Runnable() {
+                                @Override
+                                public void run() {
+                                    longPressTriggered = true;
+                                    hideAction.onLongClick(back);
+                                }
+                            };
+
+                            @Override
+                            public boolean onTouch(android.view.View v, android.view.MotionEvent event) {
+                                switch (event.getAction()) {
+                                    case android.view.MotionEvent.ACTION_DOWN:
+                                        longPressTriggered = false;
+                                        handler.postDelayed(runnable, FeatureFlags.hideChatsLongPressTime * 1000L); // from settings
+                                        break;
+                                    case android.view.MotionEvent.ACTION_UP:
+                                    case android.view.MotionEvent.ACTION_CANCEL:
+                                        handler.removeCallbacks(runnable);
+                                        if (longPressTriggered) {
+                                            return true; // consume event if long press triggered
+                                        }
+                                        break;
+                                }
+                                return false; // let normal click pass through
+                            }
+                        });
                         back.setTag(backButtonId, true);
                     }
                     return true;
@@ -291,13 +352,13 @@ public class HideChatsHook {
                 for (String k : ex.keySet()) {
                     Object dtk = scan(ex.get(k), 0,
                             java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>()), 4);
-                    if (dtk != null) { String id = firstStringField(dtk); if (id != null) return id; }
+                    if (dtk != null) { String id = firstStringField(dtk); if (id != null) return sanitizeId(id); }
                 }
             }
             // 2. Activity object graph (hosted thread fragment holds the key); depth 6.
             Object dtk = scan(activity, 0,
                     java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>()), 6);
-            return dtk != null ? firstStringField(dtk) : null;
+            return dtk != null ? sanitizeId(firstStringField(dtk)) : null;
         } catch (Throwable t) { return null; }
     }
 
@@ -357,7 +418,7 @@ public class HideChatsHook {
             } catch (Throwable ignored) {}
             v = (v.getParent() instanceof View) ? (View) v.getParent() : null;
         }
-        return found;
+        return sanitizeId(found);
     }
 
     private String threadIdFromAny(Object obj) {

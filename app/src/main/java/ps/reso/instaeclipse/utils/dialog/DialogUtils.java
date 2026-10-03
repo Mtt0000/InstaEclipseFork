@@ -1316,6 +1316,12 @@ public class DialogUtils {
 
     /** Top-level "Hide Specific Chats" section (Privacy group) — enable toggle + unhide manager.
      *  Hiding itself is done from inside a chat (the eye-off button in the thread header). */
+        private static String hideChatsModeLabel(Context context, int m) {
+        if (m == 1) return I18n.t(context, R.string.ig_dialog_hide_chats_mode_eye);
+        if (m == 2) return I18n.t(context, R.string.ig_dialog_hide_chats_mode_long_back);
+        return I18n.t(context, R.string.ig_dialog_hide_chats_mode_none);
+    }
+
     private static void showHideChatsOptions(Context context) {
         LinearLayout layout = createSwitchLayout(context);
 
@@ -1327,6 +1333,63 @@ public class DialogUtils {
             SettingsManager.saveAllFlags();
         });
         hideCard.addView(hideChats);
+
+        hideCard.addView(createActionRow(context, R.drawable.ic_settings_gear,
+                I18n.t(context, R.string.ig_dialog_hide_chats_mode) + ": " + hideChatsModeLabel(context, FeatureFlags.hideChatsMode),
+                A_PRIVACY, v -> {
+            LinearLayout modeLayout = createSwitchLayout(context);
+
+            // Mode Selection
+            modeLayout.addView(sectionHeader(context, I18n.t(context, R.string.ig_dialog_hide_chats_mode)));
+            LinearLayout modeCard = card(context);
+            String[] labels = {
+                    I18n.t(context, R.string.ig_dialog_hide_chats_mode_none),
+                    I18n.t(context, R.string.ig_dialog_hide_chats_mode_eye),
+                    I18n.t(context, R.string.ig_dialog_hide_chats_mode_long_back)
+            };
+            int[] values = {0, 1, 2};
+            RadioRow[] rows = new RadioRow[labels.length];
+            for (int i = 0; i < labels.length; i++) {
+                rows[i] = new RadioRow(context, labels[i], values[i] == FeatureFlags.hideChatsMode);
+            }
+            for (int i = 0; i < rows.length; i++) {
+                int idx = i;
+                rows[i].setOnClickListener(rv -> {
+                    FeatureFlags.hideChatsMode = values[idx];
+                    SettingsManager.saveAllFlags();
+                    for (RadioRow r : rows) r.setChecked(false);
+                    rows[idx].setChecked(true);
+                });
+                modeCard.addView(rows[i]);
+                if (i < rows.length - 1) modeCard.addView(createDivider(context));
+            }
+            modeLayout.addView(modeCard);
+
+            // Delay Selection (only relevant for long back press, but we show it anyway or we can add it unconditionally)
+            modeLayout.addView(sectionHeader(context, "Long Press Delay")); // Should really use a string resource, but this is a mod app so hardcoding English is common fallback. We will use plain string.
+            LinearLayout delayCard = card(context);
+            String[] delayLabels = {"1s", "2s", "3s", "4s", "5s"};
+            int[] delayValues = {1, 2, 3, 4, 5};
+            RadioRow[] delayRows = new RadioRow[delayLabels.length];
+            for (int i = 0; i < delayLabels.length; i++) {
+                delayRows[i] = new RadioRow(context, delayLabels[i], delayValues[i] == FeatureFlags.hideChatsLongPressTime);
+            }
+            for (int i = 0; i < delayLabels.length; i++) {
+                int idx = i;
+                delayRows[i].setOnClickListener(rv -> {
+                    FeatureFlags.hideChatsLongPressTime = delayValues[idx];
+                    SettingsManager.saveAllFlags();
+                    for (RadioRow r : delayRows) r.setChecked(false);
+                    delayRows[idx].setChecked(true);
+                });
+                delayCard.addView(delayRows[i]);
+                if (i < delayLabels.length - 1) delayCard.addView(createDivider(context));
+            }
+            modeLayout.addView(delayCard);
+
+            showSectionDialog(context, I18n.t(context, R.string.ig_dialog_hide_chats_mode), modeLayout, () -> {});
+        }));
+
         hideCard.addView(createActionRow(context, R.drawable.ic_eye,
                 I18n.t(context, R.string.ig_hide_chats_manage), A_PRIVACY, v -> showHiddenChats(context)));
         layout.addView(hideCard);

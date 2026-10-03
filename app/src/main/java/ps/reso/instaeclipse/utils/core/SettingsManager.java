@@ -55,6 +55,7 @@ public class SettingsManager {
         editor.putBoolean("quickTogglePermanentView", FeatureFlags.quickTogglePermanentView);
         editor.putBoolean("quickToggleAllowScreenshots", FeatureFlags.quickToggleAllowScreenshots);
         editor.putInt("hideChatsMode", FeatureFlags.hideChatsMode);
+        editor.putInt("hideChatsLongPressTime", FeatureFlags.hideChatsLongPressTime);
 
         // Distraction Free
         editor.putBoolean("isExtremeMode", FeatureFlags.isExtremeMode);
@@ -162,6 +163,7 @@ public class SettingsManager {
         FeatureFlags.quickTogglePermanentView = prefs.getBoolean("quickTogglePermanentView", false);
         FeatureFlags.quickToggleAllowScreenshots = prefs.getBoolean("quickToggleAllowScreenshots", false);
         FeatureFlags.hideChatsMode = prefs.getInt("hideChatsMode", 0);
+        FeatureFlags.hideChatsLongPressTime = prefs.getInt("hideChatsLongPressTime", 3);
 
         // Distraction Free
         FeatureFlags.isExtremeMode = prefs.getBoolean("isExtremeMode", false);
