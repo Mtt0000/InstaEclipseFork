@@ -210,7 +210,9 @@ public class HideChatsHook {
             View header = threadHeaderId != 0 ? activity.findViewById(threadHeaderId) : null;
             if (header == null) return false;
 
-            View back = backButtonId != 0 ? activity.findViewById(backButtonId) : null;
+            View backTemp = backButtonId != 0 ? activity.findViewById(backButtonId) : null;
+            if (backTemp == null) backTemp = findBackButton(header);
+            final View back = backTemp;
 
             final View headerRoot = header;
             final String[] bound = { KeepUnsentMessagesHook.currentThreadId };
@@ -502,5 +504,23 @@ public class HideChatsHook {
         return null;
     }
 
+
+
+    private View findBackButton(View root) {
+        if (root == null) return null;
+        if (root instanceof android.widget.ImageView && (root.isClickable() || root.getContentDescription() != null)) return root;
+        if (root instanceof ViewGroup) {
+            ViewGroup vg = (ViewGroup) root;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                View child = vg.getChildAt(i);
+                if (child instanceof android.widget.ImageView && (child.isClickable() || child.getContentDescription() != null)) {
+                    return child;
+                }
+                View found = findBackButton(child);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
     private static int dp(Activity a, int v) { return Math.round(v * a.getResources().getDisplayMetrics().density); }
 }
