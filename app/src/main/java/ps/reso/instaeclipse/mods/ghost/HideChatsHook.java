@@ -61,7 +61,8 @@ public class HideChatsHook {
             @Override protected void afterHookedMethod(MethodHookParam param) {
                 if (!FeatureFlags.hideSpecificChats || HiddenThreads.isEmpty()) return;
                 Object r = param.getResult();
-                if (!(r instanceof java.util.List<?> list) || list.isEmpty()) return;
+                if (!(r instanceof java.util.Collection<?> col) || col.isEmpty()) return;
+                java.util.List<?> list = new java.util.ArrayList<>(col);
 
                 // Type safety check: ensure the list contains thread summaries
                 boolean foundValidId = false;
@@ -83,7 +84,11 @@ public class HideChatsHook {
                         }
                     }
                     if (filtered.size() != list.size()) {
-                        param.setResult(filtered);
+                        if (r instanceof java.util.Set) {
+                            param.setResult(new java.util.HashSet<>(filtered));
+                        } else {
+                            param.setResult(filtered);
+                        }
                     }
                 } catch (Throwable ignored) {}
             }
@@ -95,11 +100,11 @@ public class HideChatsHook {
 
             if (!anchorMethods.isEmpty()) {
                 String targetClassName = anchorMethods.get(0).getClassName();
-                // Find all methods returning java.util.List by loading the class and reflecting it
+                // Find all methods returning java.util.Collection by loading the class and reflecting it
                 try {
                     Class<?> targetClass = classLoader.loadClass(targetClassName);
                     for (java.lang.reflect.Method m : targetClass.getDeclaredMethods()) {
-                        if (m.getReturnType() == java.util.List.class) {
+                        if (java.util.Collection.class.isAssignableFrom(m.getReturnType())) {
                             try { XposedBridge.hookMethod(m, filter); n++; }
                             catch (Throwable ignored) {}
                         }
@@ -107,7 +112,7 @@ public class HideChatsHook {
                 } catch (Throwable ignored) {}
             }
             if (n > 0) FeatureStatusTracker.setHooked("HideSpecificChats");
-            ModuleLog.line("(IE|HideChats) inbox filter hooked " + n + " method(s) returning List in target class");
+            ModuleLog.line("(IE|HideChats) inbox filter hooked " + n + " method(s) returning Collection in target class");
         } catch (Throwable t) {
             ModuleLog.line("(IE|HideChats) ⚠️ inbox filter: " + t.getMessage());
         }
@@ -133,7 +138,7 @@ public class HideChatsHook {
             c = row.getClass();
             while (c != null && c != Object.class) {
                 for (Field f : c.getDeclaredFields()) {
-                    if (f.getType() == String.class) {
+                    if (f.getType() == String.class && !java.lang.reflect.Modifier.isStatic(f.getModifiers())) {
                         String name = f.getName().toLowerCase();
                         if (name.contains("thread") && name.contains("id")) {
                             f.setAccessible(true);
@@ -447,11 +452,15 @@ public class HideChatsHook {
     private static String firstStringField(Object o) {
         if (o == null) return null;
         try {
-            for (Field f : o.getClass().getDeclaredFields()) {
-                if (f.getType() != String.class) continue;
-                f.setAccessible(true);
-                Object v = f.get(o);
-                if (v instanceof String s && !s.isEmpty()) return s;
+            Class<?> c = o.getClass();
+            while (c != null && c != Object.class) {
+                for (Field f : c.getDeclaredFields()) {
+                    if (f.getType() != String.class || java.lang.reflect.Modifier.isStatic(f.getModifiers())) continue;
+                    f.setAccessible(true);
+                    Object v = f.get(o);
+                    if (v instanceof String s && !s.isEmpty()) return s;
+                }
+                c = c.getSuperclass();
             }
         } catch (Throwable ignored) {}
         return null;
