@@ -109,6 +109,8 @@ public class FeaturesFragment extends Fragment {
                         loadQualityMenu();
                     } else if ("hidechats".equals(currentMenu)) {
                         loadHideChatsMenu();
+                    } else if ("fakegeneral".equals(currentMenu)) {
+                        loadFakeGeneralMenu();
                     } else if (adapter != null) {
                         adapter.notifyDataSetChanged();
                     }
@@ -700,11 +702,16 @@ public class FeaturesFragment extends Fragment {
                 createNav(R.drawable.ic_sparkle, A_APPEARANCE, getString(R.string.ig_dialog_menu_clean_feed), this::loadCleanFeedMenu)
         ));
 
+        defs.add(getString(R.string.feat_group_direct));
+        defs.add(Arrays.asList(
+                createNav(R.drawable.ic_eye_off, A_PRIVACY, getString(R.string.ig_hide_chats_title), this::loadHideChatsMenu),
+                createNav(R.drawable.ic_eye_off, A_PRIVACY, getString(R.string.ig_dialog_fake_general_mode), this::loadFakeGeneralMenu)
+        ));
+
         defs.add(getString(R.string.feat_group_privacy));
         defs.add(Arrays.asList(
                 createNav(R.drawable.ic_eye, A_PRIVACY, getString(R.string.ig_dialog_menu_ghost_settings), this::loadGhostMenu),
                 createNav(R.drawable.ic_shield, A_PRIVACY, getString(R.string.ig_dialog_misc_lock_section), this::loadLockMenu),
-                createNav(R.drawable.ic_eye_off, A_PRIVACY, getString(R.string.ig_hide_chats_title), this::loadHideChatsMenu),
                 createNav(R.drawable.ic_block, A_PRIVACY, getString(R.string.ig_dialog_menu_ad_analytics), this::loadAdsMenu),
                 createNav(R.drawable.ic_notification, A_PRIVACY, getString(R.string.ig_dialog_menu_distraction_free), this::loadDistractionMenu)
         ));
@@ -942,6 +949,18 @@ public class FeaturesFragment extends Fragment {
 
     /** Hide Specific Chats (Privacy). The companion app toggles the feature; hiding/unhiding a
      *  specific chat is done from inside Instagram. */
+    private void loadFakeGeneralMenu() {
+        List<Object> defs = new ArrayList<>();
+
+        defs.add(getString(R.string.feat_features));
+        defs.add(Arrays.asList(
+                createSwitch(R.drawable.ic_eye_off, "#5E5CE6", getString(R.string.ig_dialog_fake_general_mode), "isFakeGeneralModeEnabled")
+        ));
+
+        showMenu(getString(R.string.ig_dialog_fake_general_mode), defs);
+        currentMenu = "fakegeneral";
+    }
+
     private void loadHideChatsMenu() {
         List<Object> defs = new ArrayList<>();
         int currentMode = localCache.getInt("hideChatsMode", 0);
