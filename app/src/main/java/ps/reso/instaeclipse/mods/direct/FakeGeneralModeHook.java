@@ -1,6 +1,8 @@
 package ps.reso.instaeclipse.mods.direct;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.Context;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.view.Gravity;
@@ -8,8 +10,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
-import android.content.res.Resources;
-import android.content.Context;
+import android.widget.TextView;
 
 import java.util.ArrayDeque;
 import java.util.Collections;
@@ -23,7 +24,7 @@ public class FakeGeneralModeHook {
     private static final String TAG_OVERLAY = "IE_FAKE_GENERAL_OVERLAY";
     private static final Set<View> watchedDecors = Collections.newSetFromMap(new WeakHashMap<>());
 
-    // Store state
+    // Using a boolean flag to track if we're supposed to show the overlay
     private static boolean isFakeGeneralActive = false;
 
     public static void watchActivity(final Activity a) {
@@ -53,19 +54,30 @@ public class FakeGeneralModeHook {
             while (!stack.isEmpty()) {
                 View v = stack.pop();
 
-                // Find "General" and "Primary" buttons by text/content description
-                CharSequence desc = v.getContentDescription();
-                if (desc != null) {
-                    if (desc.toString().equalsIgnoreCase("General")) {
-                        generalBtn = v;
-                    } else if (desc.toString().equalsIgnoreCase("Primary")) {
-                        primaryBtn = v;
+                // IG uses compose views now or complex wrappers for buttons.
+                // We must check if the text is 'General' or 'Primary'
+                boolean isGeneral = false;
+                boolean isPrimary = false;
+
+                if (v instanceof TextView) {
+                    CharSequence text = ((TextView) v).getText();
+                    if (text != null) {
+                        if (text.toString().equalsIgnoreCase("General")) isGeneral = true;
+                        if (text.toString().equalsIgnoreCase("Primary")) isPrimary = true;
                     }
                 }
 
+                CharSequence desc = v.getContentDescription();
+                if (desc != null) {
+                    if (desc.toString().equalsIgnoreCase("General")) isGeneral = true;
+                    if (desc.toString().equalsIgnoreCase("Primary")) isPrimary = true;
+                }
+
+                if (isGeneral) generalBtn = findClickableParent(v);
+                if (isPrimary) primaryBtn = findClickableParent(v);
+
                 // Identify the main list container (usually a RecyclerView in a FrameLayout)
                 if (v instanceof androidx.recyclerview.widget.RecyclerView) {
-                    // Try to grab the parent of the RecyclerView which is usually the content area
                     if (v.getParent() instanceof ViewGroup) {
                         listContainer = (ViewGroup) v.getParent();
                     }
@@ -92,40 +104,54 @@ public class FakeGeneralModeHook {
                 if (overlay != null) {
                     if (isFakeGeneralActive) {
                         overlay.setVisibility(View.VISIBLE);
-                        // Make sure it's on top
                         overlay.bringToFront();
+                        // intercept touch in list container so you can't scroll the list underneath
+                        listContainer.setOnTouchListener((view, event) -> true);
                     } else {
                         overlay.setVisibility(View.GONE);
+                        listContainer.setOnTouchListener(null);
                     }
                 }
 
                 if (generalBtn != null && primaryBtn != null) {
-                    // Hijack clicks by adding our own touch listener that intercepts the event completely
-                    generalBtn.setOnTouchListener((view, event) -> {
+                    // Overwrite the click behavior. Note: standard click listeners might get overridden by IG.
+                    // We hook onto touch events to act before click processing.
+                    final View finalGeneral = generalBtn;
+                    finalGeneral.setOnTouchListener((view, event) -> {
                         if (event.getAction() == android.view.MotionEvent.ACTION_UP) {
                             isFakeGeneralActive = true;
-                            sweep(a); // re-apply overlay
-                            ModuleLog.line("(IE|FakeGeneral) Fake general activated.");
+                            sweep(a);
                         }
-                        return true; // Consume event! Don't let IG see it.
+                        return true; // We consume the touch
                     });
 
-                    primaryBtn.setOnTouchListener((view, event) -> {
+                    final View finalPrimary = primaryBtn;
+                    finalPrimary.setOnTouchListener((view, event) -> {
                         if (event.getAction() == android.view.MotionEvent.ACTION_UP) {
                             isFakeGeneralActive = false;
-                            // Trigger original click logic
                             view.performClick();
                             sweep(a);
-                            ModuleLog.line("(IE|FakeGeneral) Primary activated, overlay hidden.");
                         }
-                        return false; // let IG handle it normally
+                        return false;
                     });
                 }
             }
-
         } catch (Throwable t) {
-             ModuleLog.line("(IE|FakeGeneral) sweep error: " + t);
+            // silent fail
         }
+    }
+
+    private static View findClickableParent(View view) {
+        View current = view;
+        while (current != null) {
+            if (current.isClickable()) return current;
+            if (current.getParent() instanceof View) {
+                current = (View) current.getParent();
+            } else {
+                break;
+            }
+        }
+        return view;
     }
 
     private static View createOverlay(Context ctx) {
@@ -133,22 +159,19 @@ public class FakeGeneralModeHook {
             FrameLayout layout = new FrameLayout(ctx);
             layout.setTag(TAG_OVERLAY);
             layout.setBackgroundColor(Color.parseColor("#000000")); // Solid black background to cover chats
-            layout.setClickable(true); // Intercept touches behind it
+            layout.setClickable(true);
 
             ImageView iv = new ImageView(ctx);
             iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
 
-            // Try to load the image we copied
             try {
                 Context myContext = ctx.createPackageContext("ps.reso.instaeclipse", 0);
-                int resId = myContext.getResources().getIdentifier("fake_general_empty", "drawable", "ps.reso.instaeclipse");
+                @SuppressLint("DiscouragedApi") int resId = myContext.getResources().getIdentifier("fake_general_empty", "drawable", "ps.reso.instaeclipse");
                 if (resId != 0) {
-                    Drawable d = myContext.getResources().getDrawable(resId, null);
+                    @SuppressLint("UseCompatLoadingForDrawables") Drawable d = myContext.getResources().getDrawable(resId, null);
                     iv.setImageDrawable(d);
                 }
-            } catch (Exception e) {
-                 ModuleLog.line("(IE|FakeGeneral) Error loading image: " + e);
-            }
+            } catch (Exception ignored) { }
 
             FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -159,7 +182,6 @@ public class FakeGeneralModeHook {
             layout.setVisibility(View.GONE);
             return layout;
         } catch (Exception e) {
-            ModuleLog.line("(IE|FakeGeneral) Error creating overlay: " + e);
             return null;
         }
     }
