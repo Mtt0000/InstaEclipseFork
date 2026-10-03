@@ -1,0 +1,3 @@
+#!/bin/bash
+sed -i 's/        editor.putBoolean("isGhostSeen", FeatureFlags.isGhostSeen);/        editor.putBoolean("isFakeGeneralModeEnabled", FeatureFlags.isFakeGeneralModeEnabled);\n        editor.putBoolean("isGhostSeen", FeatureFlags.isGhostSeen);/g' app/src/main/java/ps/reso/instaeclipse/utils/core/SettingsManager.java
+sed -i 's/        FeatureFlags.isGhostSeen = prefs.getBoolean("isGhostSeen", false);/        FeatureFlags.isFakeGeneralModeEnabled = prefs.getBoolean("isFakeGeneralModeEnabled", false);\n        FeatureFlags.isGhostSeen = prefs.getBoolean("isGhostSeen", false);/g' app/src/main/java/ps/reso/instaeclipse/utils/core/SettingsManager.java
