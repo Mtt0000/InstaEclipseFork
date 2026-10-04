@@ -1,4 +1,4 @@
-name: Build All Branches
+Name: Build All Branches
 
 on:
   push:
@@ -80,12 +80,12 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: success()
         with:
-          tag_name: build-${{ matrix.branch }}
-          name: Build (${{ matrix.branch }})
+          tag_name: build-${{ matrix.branch }}-${{ github.run_number }}
+          name: Build (${{ matrix.branch }}) #${{ github.run_number }}
           body: |
             Release automatica generata per il branch **${{ matrix.branch }}**.
+            Commit: ${{ github.sha }}
           files: dist/*.apk
           prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
