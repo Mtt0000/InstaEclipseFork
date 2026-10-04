@@ -36,7 +36,6 @@ import ps.reso.instaeclipse.mods.ghost.GhostDMMarkAsReadHook;
 import ps.reso.instaeclipse.mods.ghost.GhostDMSeenHook;
 import ps.reso.instaeclipse.mods.ghost.GhostEphemeralKeepHook;
 import ps.reso.instaeclipse.mods.ghost.GhostPermanentViewHook;
-import ps.reso.instaeclipse.mods.direct.FakeGeneralModeUIHook;
 import ps.reso.instaeclipse.mods.ghost.ViewOnceBadgeHook;
 import ps.reso.instaeclipse.mods.ghost.KeepUnsentMessagesHook;
 import ps.reso.instaeclipse.mods.ghost.GhostScreenshotDetectionHook;
@@ -104,7 +103,6 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
         // Ensure preferences are loaded
 
         try {
-            FakeGeneralModeUIHook.initZygote();
         } catch (Throwable t) {
             ModuleLog.line("(InstaEclipse | FakeGeneral): ❌ Failed to hook initZygote");
         }
