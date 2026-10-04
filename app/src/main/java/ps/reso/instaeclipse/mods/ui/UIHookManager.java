@@ -106,6 +106,9 @@ public class UIHookManager {
         // Fake General Mode (Legacy View hook removed)
 
 
+        // Fake General Mode
+        ps.reso.instaeclipse.mods.direct.FakeGeneralModeUIHook.watchActivity(activity);
+
         // Cache resource IDs once per IG install (string table lookup is non-trivial).
         ensureIdsCached(activity);
 

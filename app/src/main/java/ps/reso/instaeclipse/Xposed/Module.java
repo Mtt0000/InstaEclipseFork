@@ -36,6 +36,7 @@ import ps.reso.instaeclipse.mods.ghost.GhostDMMarkAsReadHook;
 import ps.reso.instaeclipse.mods.ghost.GhostDMSeenHook;
 import ps.reso.instaeclipse.mods.ghost.GhostEphemeralKeepHook;
 import ps.reso.instaeclipse.mods.ghost.GhostPermanentViewHook;
+import ps.reso.instaeclipse.mods.direct.FakeGeneralModeUIHook;
 import ps.reso.instaeclipse.mods.ghost.ViewOnceBadgeHook;
 import ps.reso.instaeclipse.mods.ghost.KeepUnsentMessagesHook;
 import ps.reso.instaeclipse.mods.ghost.GhostScreenshotDetectionHook;
@@ -101,6 +102,12 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
     @Override
     public void handleLoadPackage(final XC_LoadPackage.LoadPackageParam lpparam) {
         // Ensure preferences are loaded
+
+        try {
+            FakeGeneralModeUIHook.initZygote();
+        } catch (Throwable t) {
+            ModuleLog.line("(InstaEclipse | FakeGeneral): ❌ Failed to hook initZygote");
+        }
 
 
         // Hook into Instagram and its clones
@@ -260,7 +267,6 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
 
                     try {
                         new ps.reso.instaeclipse.mods.ghost.HideChatsHook().install(dexKitBridge, lpparam.classLoader); // Hide Specific Chats
-                        new ps.reso.instaeclipse.mods.direct.FakeGeneralModeDataHook().install(dexKitBridge, lpparam.classLoader); // Fake General Mode Data
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | HideChats): ❌ Failed to hook");
                     }
