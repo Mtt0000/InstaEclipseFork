@@ -32,8 +32,6 @@ jobs:
           cache: 'gradle'
 
       # Step 3: Set up Android SDK
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
 
       # Step 4: Grant execution permissions to gradlew
       - name: Grant execute permission to gradlew
