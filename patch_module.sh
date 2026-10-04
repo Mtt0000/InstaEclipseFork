@@ -1,0 +1,2 @@
+#!/bin/bash
+sed -i 's/                        new ps.reso.instaeclipse.mods.ghost.HideChatsHook().install(dexKitBridge, lpparam.classLoader); \/\/ Hide Specific Chats/                        new ps.reso.instaeclipse.mods.ghost.HideChatsHook().install(dexKitBridge, lpparam.classLoader); \/\/ Hide Specific Chats\n                        new ps.reso.instaeclipse.mods.direct.FakeGeneralModeDataHook().install(dexKitBridge, lpparam.classLoader); \/\/ Fake General Mode Data/g' app/src/main/java/ps/reso/instaeclipse/Xposed/Module.java

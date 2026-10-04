@@ -103,8 +103,8 @@ public class UIHookManager {
         // alone leaves IG's cached stories/reels visible on IG 447.0.0.39+).
         ps.reso.instaeclipse.mods.ui.DistractionFreeUIHook.watchActivity(activity);
 
-        // Fake General Mode
-        ps.reso.instaeclipse.mods.direct.FakeGeneralModeHook.watchActivity(activity);
+        // Fake General Mode (Legacy View hook removed)
+
 
         // Cache resource IDs once per IG install (string table lookup is non-trivial).
         ensureIdsCached(activity);
