@@ -95,14 +95,25 @@ public class HideChatsHook {
         };
         try {
             int n = 0;
-            java.util.List<MethodData> anchorMethods = bridge.findMethod(FindMethod.create()
-                    .matcher(MethodMatcher.create().usingStrings(INBOX_ANCHOR)));
 
-            if (!anchorMethods.isEmpty()) {
-                String targetClassName = anchorMethods.get(0).getClassName();
-                // Find all methods returning java.util.Collection by loading the class and reflecting it
+            // Primary heuristic: multi-factorial data model search
+            // The JSON parsers or thread stores generally return collections and take several boolean flags
+            java.util.List<MethodData> methods = bridge.findMethod(FindMethod.create()
+                    .matcher(MethodMatcher.create()
+                            .usingStrings("has_older", "has_newer") // Known thread-related string constants
+                            .returnType("java.util.List")
+                    ));
+
+            if (methods.isEmpty()) {
+                // Secondary heuristic fallback: the old INBOX_ANCHOR if "has_older" parser not found
+                ModuleLog.line("(IE|HideChats) primary heuristic failed, attempting fallback...");
+                methods = bridge.findMethod(FindMethod.create()
+                        .matcher(MethodMatcher.create().usingStrings(INBOX_ANCHOR)));
+            }
+
+            for (MethodData md : methods) {
                 try {
-                    Class<?> targetClass = classLoader.loadClass(targetClassName);
+                    Class<?> targetClass = classLoader.loadClass(md.getClassName());
                     for (java.lang.reflect.Method m : targetClass.getDeclaredMethods()) {
                         if (java.util.Collection.class.isAssignableFrom(m.getReturnType())) {
                             try { XposedBridge.hookMethod(m, filter); n++; }
@@ -111,8 +122,13 @@ public class HideChatsHook {
                     }
                 } catch (Throwable ignored) {}
             }
-            if (n > 0) FeatureStatusTracker.setHooked("HideSpecificChats");
-            ModuleLog.line("(IE|HideChats) inbox filter hooked " + n + " method(s) returning Collection in target class");
+
+            if (n > 0) {
+                FeatureStatusTracker.setHooked("HideSpecificChats");
+                ModuleLog.line("(IE|HideChats) inbox filter hooked " + n + " method(s) returning Collection in target class");
+            } else {
+                ModuleLog.line("(IE|HideChats) ❌ inbox filter failed to hook any methods");
+            }
         } catch (Throwable t) {
             ModuleLog.line("(IE|HideChats) ⚠️ inbox filter: " + t.getMessage());
         }
@@ -223,8 +239,8 @@ public class HideChatsHook {
             final String[] bound = { KeepUnsentMessagesHook.currentThreadId };
 
             android.view.View.OnLongClickListener hideAction = v -> {
-                String threadId = HideChatsHook.currentThreadId;
-                if (threadId == null) threadId = resolveFromActivity(activity);
+                String threadId = resolveFromActivity(activity);
+                if (threadId == null) threadId = HideChatsHook.currentThreadId;
                 if (threadId == null) threadId = bound[0];
                 if (threadId == null) threadId = KeepUnsentMessagesHook.currentThreadId;
                 if (threadId == null) threadId = resolveThreadId(headerRoot);

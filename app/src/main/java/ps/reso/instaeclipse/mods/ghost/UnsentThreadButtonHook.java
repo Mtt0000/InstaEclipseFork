@@ -189,8 +189,8 @@ public class UnsentThreadButtonHook {
                 // PRIMARY: read the actually-open thread from the foreground fragment (immune to
                 // background igThreadIgid churn). Fallbacks: id bound at open, then tracked, then tags.
                 String threadId = resolveFromActivity(activity);
-                if (threadId == null) threadId = bound[0];
                 if (threadId == null) threadId = KeepUnsentMessagesHook.currentThreadId;
+                if (threadId == null) threadId = bound[0];
                 if (threadId == null) threadId = resolveThreadId(headerRoot);
                 ModuleLog.line("(IE|UnsentBtn) open thread=" + threadId);
                 ps.reso.instaeclipse.utils.dialog.DialogUtils.showThreadUnsent(activity, threadId, threadTitle(activity));
