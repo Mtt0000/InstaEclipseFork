@@ -1,22 +1,56 @@
-name: Build InstaEclipse APK
+name: Build All Branches
 
 on:
   push:
     branches:
       - '**'
   workflow_dispatch:
+    inputs:
+      build_all:
+        description: 'Compilare tutti i branch in parallelo?'
+        required: true
+        type: boolean
+        default: true
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  get-branches:
     runs-on: ubuntu-latest
-
+    outputs:
+      branches: ${{ steps.set-branches.outputs.branches }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          fetch-depth: 0
+
+      - name: Detect target branches
+        id: set-branches
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.build_all }}" = "true" ]; then
+            # Recupera tutti i branch remoti escludendo HEAD
+            BRANCHES=$(git branch -r | grep -v '\->' | sed 's/origin\///' | tr -d ' ' | jq -R -s -c 'split("\n")[:-1]')
+          else
+            # Al push compila solo il singolo branch che ha ricevuto il commit
+            BRANCHES=$(jq -nc --arg b "${{ github.ref_name }}" '[$b]')
+          fi
+          echo "branches=${BRANCHES}" >> $GITHUB_OUTPUT
+
+  build:
+    needs: get-branches
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        branch: ${{ fromJson(needs.get-branches.outputs.branches) }}
+
+    steps:
+      - name: Checkout branch ${{ matrix.branch }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.branch }}
           submodules: recursive
           fetch-depth: 0
 
@@ -39,18 +73,19 @@ jobs:
       - name: Prepare APK Name
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/*.apk dist/InstaEclipse-${{ github.ref_name }}.apk
+          SAFE_BRANCH=$(echo "${{ matrix.branch }}" | sed 's/[^a-zA-Z0-9._-]/-/g')
+          cp app/build/outputs/apk/debug/*.apk dist/InstaEclipse-${SAFE_BRANCH}.apk
 
       - name: Publish Direct APK to GitHub Releases
         uses: softprops/action-gh-release@v2
         if: success()
         with:
-          tag_name: build-${{ github.ref_name }}
-          name: Build (${{ github.ref_name }})
+          tag_name: build-${{ matrix.branch }}
+          name: Build (${{ matrix.branch }})
           body: |
-            Release automatica generata per il branch **${{ github.ref_name }}**.
-            Ultimo commit: ${{ github.sha }}
+            Release automatica generata per il branch **${{ matrix.branch }}**.
           files: dist/*.apk
           prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
