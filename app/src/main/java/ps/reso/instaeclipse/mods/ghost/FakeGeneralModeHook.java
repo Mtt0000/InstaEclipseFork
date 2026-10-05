@@ -60,6 +60,14 @@ public class FakeGeneralModeHook {
                     if (!FeatureFlags.fakeGeneralMode) return;
                     checkAndApplyFakeGeneral(activity);
                 });
+                decor.getViewTreeObserver().addOnScrollChangedListener(() -> {
+                    if (!FeatureFlags.fakeGeneralMode) return;
+                    checkAndApplyFakeGeneral(activity);
+                });
+                decor.getViewTreeObserver().addOnPreDrawListener(() -> {
+                    if (FeatureFlags.fakeGeneralMode) checkAndApplyFakeGeneral(activity);
+                    return true;
+                });
                 hookTouchEvents(activity);
                 checkAndApplyFakeGeneral(activity);
             }
@@ -214,6 +222,11 @@ public class FakeGeneralModeHook {
         View decor = a.getWindow().getDecorView();
         boolean isGeneralActive = isGeneralTabActive(decor);
 
+        if (isGeneralActive == isGeneralTabCurrentlyActive && fakeOverlay != null) {
+            if (isGeneralActive && fakeOverlay.getVisibility() == View.VISIBLE) return;
+            if (!isGeneralActive && fakeOverlay.getVisibility() == View.GONE) return;
+        }
+
         // Update the global flag so the data hook knows what to do
         isGeneralTabCurrentlyActive = isGeneralActive;
 
@@ -310,9 +323,9 @@ public class FakeGeneralModeHook {
             android.widget.TextView tv = (android.widget.TextView) root;
             CharSequence text = tv.getText();
             if (text != null) {
-                String s = text.toString().toLowerCase(java.util.Locale.ROOT);
+                String s = text.toString().toLowerCase(java.util.Locale.ROOT).trim();
                 // Check if it's the General tab
-                if (s.equals("general") || s.equals("generale") || s.equals("allgemein") || s.equals("général") || s.contains("general")) {
+                if (s.equals("general") || s.equals("generale") || s.equals("allgemein") || s.equals("général")) {
                     // It could be selected itself, or its parent could be selected
                     boolean selected = root.isSelected() || root.isActivated();
 
