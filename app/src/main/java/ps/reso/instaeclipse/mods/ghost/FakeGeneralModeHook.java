@@ -8,9 +8,12 @@ import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.FrameLayout;
 import android.view.MotionEvent;
+import android.os.Handler;
+import android.os.Looper;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.lang.ref.WeakReference;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
@@ -36,6 +39,8 @@ public class FakeGeneralModeHook {
 
     // Global flag updated by UI layout listeners
     private static volatile boolean isGeneralTabCurrentlyActive = false;
+    private static WeakReference<Activity> currentActivityRef = new WeakReference<>(null);
+    private static final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     public void install(DexKitBridge bridge, ClassLoader classLoader) {
         if (!FeatureFlags.fakeGeneralMode) return;
@@ -46,6 +51,7 @@ public class FakeGeneralModeHook {
             @Override
             protected void afterHookedMethod(MethodHookParam param) {
                 Activity activity = (Activity) param.thisObject;
+                currentActivityRef = new WeakReference<>(activity);
                 ensureIds(activity);
 
                 final View decor = activity.getWindow().getDecorView();
@@ -136,6 +142,24 @@ public class FakeGeneralModeHook {
         }
     }
 
+    private static Integer extractFolderType(Object item) {
+        if (item == null) return null;
+        try {
+            for (Class<?> c = item.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+                for (java.lang.reflect.Field f : c.getDeclaredFields()) {
+                    if (f.getType() == int.class || f.getType() == Integer.class) {
+                        String name = f.getName().toLowerCase(java.util.Locale.ROOT);
+                        if (name.contains("folder")) {
+                            f.setAccessible(true);
+                            return (Integer) f.get(item);
+                        }
+                    }
+                }
+            }
+        } catch (Throwable t) {}
+        return null;
+    }
+
     private void installDataHook(DexKitBridge bridge, ClassLoader classLoader) {
         XC_MethodHook filter = new XC_MethodHook() {
             @Override
@@ -145,36 +169,46 @@ public class FakeGeneralModeHook {
                 Object r = param.getResult();
                 if (!(r instanceof java.util.List<?> list) || list.isEmpty()) return;
 
-                boolean isGeneralData = isGeneralTabCurrentlyActive;
-
-                // Fallback heuristic: check the list items. If ALL valid items are folderType == 1 (General),
-                // we assume we are in the General tab even if the UI flag missed it.
-                if (!isGeneralData) {
-                    boolean allGeneral = true;
-                    int validCount = 0;
-                    try {
-                        for (int i = 0; i < Math.min(list.size(), 10); i++) {
-                            Object item = list.get(i);
-                            if (item != null) {
-                                String str = item.toString();
-                                // Just a loose heuristic: the summary objects often contain folder identifiers
-                                if (str.contains("folderType=0") || str.contains("folder_type=0")) {
-                                    allGeneral = false;
-                                    break;
-                                }
-                                if (str.contains("folderType=1") || str.contains("folder_type=1")) {
-                                    validCount++;
-                                }
-                            }
-                        }
-                    } catch (Throwable ignored) {}
-                    if (validCount > 0 && allGeneral) {
-                        isGeneralData = true;
-                        ModuleLog.line("(IE|FakeGeneral) Data heuristic detected General tab");
+                // Check arguments in case folder type is passed directly
+                for (Object arg : param.args) {
+                    if (arg instanceof Integer) {
+                        int val = (Integer) arg;
+                        if (val == 1) isGeneralTabCurrentlyActive = true;
+                        else if (val == 0) isGeneralTabCurrentlyActive = false;
                     }
                 }
 
-                if (!isGeneralData) return;
+                // Fallback heuristic: check the list items using reflection for folder type.
+                int generalCount = 0;
+                int primaryCount = 0;
+                try {
+                    for (int i = 0; i < Math.min(list.size(), 15); i++) {
+                        Object item = list.get(i);
+                        Integer fType = extractFolderType(item);
+                        if (fType != null) {
+                            if (fType == 1) generalCount++;
+                            else if (fType == 0) primaryCount++;
+                        }
+                    }
+                } catch (Throwable ignored) {}
+
+                if (generalCount > 0 && primaryCount == 0) {
+                    isGeneralTabCurrentlyActive = true;
+                    ModuleLog.line("(IE|FakeGeneral) Data heuristic detected General tab");
+                } else if (primaryCount > 0 && generalCount == 0) {
+                    isGeneralTabCurrentlyActive = false;
+                    ModuleLog.line("(IE|FakeGeneral) Data heuristic detected Primary tab");
+                }
+
+                // If UI needs to be updated with new flag
+                Activity a = currentActivityRef.get();
+                if (a != null) {
+                    mainHandler.post(() -> {
+                        checkAndApplyFakeGeneral(a);
+                    });
+                }
+
+                if (!isGeneralTabCurrentlyActive) return;
 
                 // If we are in the General tab, return an empty list natively
                 try {
