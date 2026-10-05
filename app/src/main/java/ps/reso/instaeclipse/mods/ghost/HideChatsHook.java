@@ -217,7 +217,8 @@ public class HideChatsHook {
             final View headerRoot = header;
 
             android.view.View.OnLongClickListener hideAction = v -> {
-                String threadId = resolveThreadId(headerRoot);
+                String threadId = resolveFromIntent(activity);
+                if (threadId == null) threadId = resolveThreadId(headerRoot);
                 if (threadId == null) threadId = KeepUnsentMessagesHook.currentThreadId;
                 if (threadId == null) {
                     Toast.makeText(activity, I18n(activity, R.string.ig_hide_chat_no_thread), Toast.LENGTH_SHORT).show();
@@ -242,7 +243,7 @@ public class HideChatsHook {
                                 @Override
                                 public void run() {
                                     longPressTriggered = true;
-                                    hideAction.onLongClick(back);
+                                    // triggered
                                 }
                             };
 
@@ -257,6 +258,8 @@ public class HideChatsHook {
                                     case android.view.MotionEvent.ACTION_CANCEL:
                                         handler.removeCallbacks(runnable);
                                         if (longPressTriggered) {
+                                            hideAction.onLongClick(back);
+                                            activity.finish();
                                             return true; // consume event if long press triggered
                                         }
                                         break;
@@ -491,4 +494,31 @@ public class HideChatsHook {
         return null;
     }
     private static int dp(Activity a, int v) { return Math.round(v * a.getResources().getDisplayMetrics().density); }
+
+    private String resolveFromIntent(Activity activity) {
+        try {
+            android.os.Bundle ex = activity.getIntent() != null ? activity.getIntent().getExtras() : null;
+            if (ex != null) {
+                for (String k : ex.keySet()) {
+                    Object v = ex.get(k);
+                    if (v == null) continue;
+                    String cn = v.getClass().getName();
+                    if (cn.contains("DirectThreadKey")) {
+                        String id = firstStringField(v);
+                        if (id != null) return sanitizeId(id);
+                    } else if (v instanceof android.os.Bundle) {
+                        android.os.Bundle b = (android.os.Bundle) v;
+                        for (String innerK : b.keySet()) {
+                            Object innerV = b.get(innerK);
+                            if (innerV != null && innerV.getClass().getName().contains("DirectThreadKey")) {
+                                String id = firstStringField(innerV);
+                                if (id != null) return sanitizeId(id);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
 }
