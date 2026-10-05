@@ -163,15 +163,21 @@ public class DialogUtils {
         appearance.addView(createMenuRow(context, R.drawable.ic_sparkle, I18n.t(context, R.string.ig_dialog_menu_clean_feed), A_APPEARANCE, () -> showCleanFeedOptions(context)));
         mainLayout.addView(appearance);
 
-        // ---- PRIVACY ---- ghost, lock, hidden chats, ad/analytics blocking, distraction-free
+        // ---- PRIVACY ---- ghost, lock, ad/analytics blocking, distraction-free
         mainLayout.addView(sectionHeader(context, I18n.t(context, R.string.feat_group_privacy)));
         LinearLayout privacy = createGroupCard(context);
         privacy.addView(createMenuRow(context, R.drawable.ic_eye, I18n.t(context, R.string.ig_dialog_menu_ghost_settings), A_PRIVACY, () -> showGhostOptions(context)));
         privacy.addView(createMenuRow(context, R.drawable.ic_shield, I18n.t(context, R.string.ig_dialog_misc_lock_section), A_PRIVACY, () -> showLockOptions(context)));
-        privacy.addView(createMenuRow(context, R.drawable.ic_eye_off, I18n.t(context, R.string.ig_hide_chats_title), A_PRIVACY, () -> showHideChatsOptions(context)));
         privacy.addView(createMenuRow(context, R.drawable.ic_block, I18n.t(context, R.string.ig_dialog_menu_ad_analytics), A_PRIVACY, () -> showAdOptions(context)));
         privacy.addView(createMenuRow(context, R.drawable.ic_notification, I18n.t(context, R.string.ig_dialog_menu_distraction_free), A_PRIVACY, () -> showDistractionOptions(context)));
         mainLayout.addView(privacy);
+
+        // ---- DIRECT FEATURES ---- hidden chats, fake general
+        final String A_DIRECT = "#007AFF";
+        mainLayout.addView(sectionHeader(context, I18n.t(context, R.string.feat_group_direct)));
+        LinearLayout direct = createGroupCard(context);
+        direct.addView(createMenuRow(context, R.drawable.ic_chat, I18n.t(context, R.string.feat_group_direct), A_DIRECT, () -> showDirectFeaturesOptions(context)));
+        mainLayout.addView(direct);
 
         // ---- MEDIA ---- downloading, location spoofing
         mainLayout.addView(sectionHeader(context, I18n.t(context, R.string.feat_group_media)));
@@ -1320,6 +1326,26 @@ public class DialogUtils {
         if (m == 1) return I18n.t(context, R.string.ig_dialog_hide_chats_mode_eye);
         if (m == 2) return I18n.t(context, R.string.ig_dialog_hide_chats_mode_long_back);
         return I18n.t(context, R.string.ig_dialog_hide_chats_mode_none);
+    }
+
+    private static void showDirectFeaturesOptions(Context context) {
+        LinearLayout layout = createSwitchLayout(context);
+        final String A_DIRECT = "#007AFF";
+
+        LinearLayout directCard = card(context);
+        directCard.addView(createMenuRow(context, R.drawable.ic_eye_off, I18n.t(context, R.string.ig_hide_chats_title), A_DIRECT, () -> showHideChatsOptions(context)));
+
+        ToggleRow fakeGeneral = createSwitch(context, R.drawable.ic_eye_off, A_DIRECT,
+                I18n.t(context, R.string.ig_dialog_fake_general), FeatureFlags.fakeGeneralMode);
+        fakeGeneral.setOnCheckedChangeListener((b, checked) -> {
+            FeatureFlags.fakeGeneralMode = checked;
+            SettingsManager.saveAllFlags();
+        });
+        directCard.addView(fakeGeneral);
+
+        layout.addView(directCard);
+
+        showSectionDialog(context, I18n.t(context, R.string.feat_group_direct), layout, () -> {});
     }
 
     private static void showHideChatsOptions(Context context) {

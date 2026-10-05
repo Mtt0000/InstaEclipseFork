@@ -109,6 +109,8 @@ public class FeaturesFragment extends Fragment {
                         loadQualityMenu();
                     } else if ("hidechats".equals(currentMenu)) {
                         loadHideChatsMenu();
+                    } else if ("directfeatures".equals(currentMenu)) {
+                        loadDirectFeaturesMenu();
                     } else if (adapter != null) {
                         adapter.notifyDataSetChanged();
                     }
@@ -257,7 +259,9 @@ public class FeaturesFragment extends Fragment {
         requireActivity().getOnBackPressedDispatcher().addCallback(getViewLifecycleOwner(), new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
-                if (!"main".equals(currentMenu)) {
+                if ("hidechats".equals(currentMenu)) {
+                    loadDirectFeaturesMenu();
+                } else if (!"main".equals(currentMenu)) {
                     loadMainMenu();
                 } else {
                     setEnabled(false);
@@ -690,8 +694,8 @@ public class FeaturesFragment extends Fragment {
     private void loadMainMenu() {
         List<Object> defs = new ArrayList<>();
 
-        // Grouped to match the in-IG dialog: Appearance / Privacy / Media / Tools.
-        final String A_APPEARANCE = "#FF375F", A_PRIVACY = "#5E5CE6", A_MEDIA = "#FF9F0A", A_TOOLS = "#8E8E93";
+        // Grouped to match the in-IG dialog: Appearance / Privacy / Direct / Media / Tools.
+        final String A_APPEARANCE = "#FF375F", A_PRIVACY = "#5E5CE6", A_DIRECT = "#007AFF", A_MEDIA = "#FF9F0A", A_TOOLS = "#8E8E93";
 
         defs.add(getString(R.string.feat_group_appearance));
         defs.add(Arrays.asList(
@@ -704,9 +708,13 @@ public class FeaturesFragment extends Fragment {
         defs.add(Arrays.asList(
                 createNav(R.drawable.ic_eye, A_PRIVACY, getString(R.string.ig_dialog_menu_ghost_settings), this::loadGhostMenu),
                 createNav(R.drawable.ic_shield, A_PRIVACY, getString(R.string.ig_dialog_misc_lock_section), this::loadLockMenu),
-                createNav(R.drawable.ic_eye_off, A_PRIVACY, getString(R.string.ig_hide_chats_title), this::loadHideChatsMenu),
                 createNav(R.drawable.ic_block, A_PRIVACY, getString(R.string.ig_dialog_menu_ad_analytics), this::loadAdsMenu),
                 createNav(R.drawable.ic_notification, A_PRIVACY, getString(R.string.ig_dialog_menu_distraction_free), this::loadDistractionMenu)
+        ));
+
+        defs.add(getString(R.string.feat_group_direct));
+        defs.add(Arrays.asList(
+                createNav(R.drawable.ic_chat, A_DIRECT, getString(R.string.feat_group_direct), this::loadDirectFeaturesMenu)
         ));
 
         defs.add(getString(R.string.feat_group_media));
@@ -940,7 +948,21 @@ public class FeaturesFragment extends Fragment {
         return getString(R.string.ig_dialog_hide_chats_mode_none);
     }
 
-    /** Hide Specific Chats (Privacy). The companion app toggles the feature; hiding/unhiding a
+    /** Direct Features Menu */
+    private void loadDirectFeaturesMenu() {
+        List<Object> defs = new ArrayList<>();
+
+        defs.add(getString(R.string.feat_features));
+        defs.add(Arrays.asList(
+                createNav(R.drawable.ic_eye_off, "#007AFF", getString(R.string.ig_hide_chats_title), this::loadHideChatsMenu),
+                createSwitch(R.drawable.ic_eye_off, "#007AFF", getString(R.string.ig_dialog_fake_general), "fakeGeneralMode")
+        ));
+
+        showMenu(getString(R.string.feat_group_direct), defs);
+        currentMenu = "directfeatures";
+    }
+
+    /** Hide Specific Chats. The companion app toggles the feature; hiding/unhiding a
      *  specific chat is done from inside Instagram. */
     private void loadHideChatsMenu() {
         List<Object> defs = new ArrayList<>();
@@ -948,8 +970,8 @@ public class FeaturesFragment extends Fragment {
 
         defs.add(getString(R.string.feat_features));
         defs.add(Arrays.asList(
-                createSwitch(R.drawable.ic_eye_off, "#5E5CE6", getString(R.string.ig_dialog_misc_hide_chats), "hideSpecificChats"),
-                createClickable(R.drawable.ic_settings_gear, "#5E5CE6",
+                createSwitch(R.drawable.ic_eye_off, "#007AFF", getString(R.string.ig_dialog_misc_hide_chats), "hideSpecificChats"),
+                createClickable(R.drawable.ic_settings_gear, "#007AFF",
                         getString(R.string.ig_dialog_hide_chats_mode) + ": " + hideChatsModeLabel(currentMode),
                         () -> pickHideChatsMode(currentMode))
         ));
