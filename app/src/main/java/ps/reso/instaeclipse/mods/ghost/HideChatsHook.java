@@ -215,14 +215,9 @@ public class HideChatsHook {
             final View back = backTemp;
 
             final View headerRoot = header;
-            final String[] bound = { KeepUnsentMessagesHook.currentThreadId };
 
             android.view.View.OnLongClickListener hideAction = v -> {
-                String threadId = HideChatsHook.currentThreadId;
-                if (threadId == null) threadId = resolveFromActivity(activity);
-                if (threadId == null) threadId = bound[0];
-                if (threadId == null) threadId = KeepUnsentMessagesHook.currentThreadId;
-                if (threadId == null) threadId = resolveThreadId(headerRoot);
+                String threadId = resolveThreadId(headerRoot);
                 if (threadId == null) {
                     Toast.makeText(activity, I18n(activity, R.string.ig_hide_chat_no_thread), Toast.LENGTH_SHORT).show();
                     return true;
@@ -349,59 +344,6 @@ public class HideChatsHook {
         }
     }
 
-    // ── thread-id resolution (mirrors UnsentThreadButtonHook.resolveFromActivity — proven) ──
-    private String resolveFromActivity(Activity activity) {
-        try {
-            // 1. Intent extras (thread key usually passed here); depth 4.
-            android.os.Bundle ex = activity.getIntent() != null ? activity.getIntent().getExtras() : null;
-            if (ex != null) {
-                for (String k : ex.keySet()) {
-                    Object dtk = scan(ex.get(k), 0,
-                            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>()), 4);
-                    if (dtk != null) { String id = firstStringField(dtk); if (id != null) return sanitizeId(id); }
-                }
-            }
-            // 2. Activity object graph (hosted thread fragment holds the key); depth 6.
-            Object dtk = scan(activity, 0,
-                    java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>()), 6);
-            return dtk != null ? sanitizeId(firstStringField(dtk)) : null;
-        } catch (Throwable t) { return null; }
-    }
-
-    /** Find a DirectThreadKey in obj's field graph (depth-limited; descends IG/obfuscated + Bundles). */
-    private Object scan(Object obj, int depth, java.util.Set<Object> seen, int maxDepth) {
-        if (obj == null || depth > maxDepth || !seen.add(obj)) return null;
-        String cn = obj.getClass().getName();
-        if (cn.contains("DirectThreadKey")) return obj;
-        boolean descendable = cn.startsWith("X.") || cn.startsWith("com.instagram.")
-                || obj instanceof android.os.Bundle;
-        if (!descendable) return null;
-        if (obj instanceof android.os.Bundle) {
-            try {
-                android.os.Bundle b = (android.os.Bundle) obj;
-                for (String k : b.keySet()) {
-                    Object r = scan(b.get(k), depth + 1, seen, maxDepth);
-                    if (r != null) return r;
-                }
-            } catch (Throwable ignored) {}
-            return null;
-        }
-        try {
-            for (Class<?> c = obj.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
-                for (Field f : c.getDeclaredFields()) {
-                    if (java.lang.reflect.Modifier.isStatic(f.getModifiers()) || f.getType().isPrimitive()) continue;
-                    f.setAccessible(true);
-                    Object v;
-                    try { v = f.get(obj); } catch (Throwable e) { continue; }
-                    if (v == null) continue;
-                    if (v.getClass().getName().contains("DirectThreadKey")) return v;
-                    Object r = scan(v, depth + 1, seen, maxDepth);
-                    if (r != null) return r;
-                }
-            }
-        } catch (Throwable ignored) {}
-        return null;
-    }
 
     private String resolveThreadId(View header) {
         String found = null;
