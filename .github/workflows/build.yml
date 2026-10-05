@@ -1,9 +1,9 @@
 name: Build All Branches
 
 on:
-  push:
-    branches:
-      - '**'
+  pull_request:
+    # 'opened': quando la PR viene creata. 'synchronize': ad ogni nuovo commit spinto nella PR.
+    types: [opened, synchronize]
   workflow_dispatch:
     inputs:
       build_all:
@@ -17,6 +17,8 @@ permissions:
 
 jobs:
   get-branches:
+    # Il workflow parte solo se avviato a mano OPPURE se è un commit su PR fatto da Jules
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && contains(github.actor, 'jules'))
     runs-on: ubuntu-latest
     outputs:
       branches: ${{ steps.set-branches.outputs.branches }}
@@ -32,8 +34,10 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.build_all }}" = "true" ]; then
             # Recupera tutti i branch remoti escludendo HEAD
             BRANCHES=$(git branch -r | grep -v '\->' | sed 's/origin\///' | tr -d ' ' | jq -R -s -c 'split("\n")[:-1]')
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            # Nelle PR, il branch sorgente si trova in github.head_ref
+            BRANCHES=$(jq -nc --arg b "${{ github.head_ref }}" '[$b]')
           else
-            # Al push compila solo il singolo branch che ha ricevuto il commit
             BRANCHES=$(jq -nc --arg b "${{ github.ref_name }}" '[$b]')
           fi
           echo "branches=${BRANCHES}" >> $GITHUB_OUTPUT
@@ -47,10 +51,11 @@ jobs:
         branch: ${{ fromJson(needs.get-branches.outputs.branches) }}
 
     steps:
+      # Per le PR, usiamo il commit esatto (head.sha) invece dell'ultimo del branch
       - name: Checkout branch ${{ matrix.branch }}
         uses: actions/checkout@v4
         with:
-          ref: ${{ matrix.branch }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || matrix.branch }}
           submodules: recursive
           fetch-depth: 0
 
@@ -86,7 +91,7 @@ jobs:
           name: Build (${{ matrix.branch }}) #${{ github.run_number }}
           body: |
             Release automatica generata per il branch **${{ matrix.branch }}**.
-            Commit: ${{ github.sha }}
+            Commit: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           files: dist/*.apk
           prerelease: true
         env:
