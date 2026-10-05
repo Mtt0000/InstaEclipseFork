@@ -222,6 +222,11 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                         ModuleLog.line("(InstaEclipse | FakeGeneralMode): ❌ Failed to hook");
                     }
 
+                    // Temporary debug hook
+                    try {
+                        new ps.reso.instaeclipse.mods.devops.ClickTrackerHook().install(lpparam.classLoader);
+                    } catch (Throwable ignored) {}
+
                     try {
                         new GhostTypingIndicatorHook().handleTypingBlock(dexKitBridge); // DM Typing
                     } catch (Throwable ignored) {
