@@ -346,27 +346,47 @@ public class HideChatsHook {
 
 
     private String resolveThreadId(View header) {
-        String found = null;
-        View v = header;
+        if (header == null) return null;
+        java.util.Set<View> visited = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        String found = searchViewHierarchy(header, visited);
+        if (found != null) return sanitizeId(found);
+        View current = header;
         int up = 0;
-        while (v != null && up++ < 8) {
-            try {
-                if (tagKeyId != 0) {
-                    Object t = v.getTag(tagKeyId);
-                    if (t != null) {
-                        String id = threadIdFromAny(t);
-                        if (id != null && found == null) found = id;
-                    }
-                }
-                Object plain = v.getTag();
-                if (plain != null) {
-                    String id = threadIdFromAny(plain);
-                    if (id != null && found == null) found = id;
-                }
-            } catch (Throwable ignored) {}
-            v = (v.getParent() instanceof View) ? (View) v.getParent() : null;
+        while (current != null && up++ < 8) {
+            View parent = (current.getParent() instanceof View) ? (View) current.getParent() : null;
+            if (parent != null) {
+                found = searchViewHierarchy(parent, visited);
+                if (found != null) return sanitizeId(found);
+            }
+            current = parent;
         }
-        return sanitizeId(found);
+        return null;
+    }
+
+    private String searchViewHierarchy(View view, java.util.Set<View> visited) {
+        if (view == null || !visited.add(view)) return null;
+        try {
+            if (tagKeyId != 0) {
+                Object t = view.getTag(tagKeyId);
+                if (t != null) {
+                    String id = threadIdFromAny(t);
+                    if (id != null) return id;
+                }
+            }
+            Object plain = view.getTag();
+            if (plain != null) {
+                String id = threadIdFromAny(plain);
+                if (id != null) return id;
+            }
+        } catch (Throwable ignored) {}
+        if (view instanceof ViewGroup) {
+            ViewGroup vg = (ViewGroup) view;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                String id = searchViewHierarchy(vg.getChildAt(i), visited);
+                if (id != null) return id;
+            }
+        }
+        return null;
     }
 
     private String threadIdFromAny(Object obj) {
