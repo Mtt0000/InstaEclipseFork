@@ -83,20 +83,43 @@ public class FakeGeneralModeHook {
                 protected void afterHookedMethod(MethodHookParam param) {
                     if (!isInbox(a)) return;
                     MotionEvent event = (MotionEvent) param.args[0];
+
+                    if (event.getAction() == MotionEvent.ACTION_DOWN || event.getAction() == MotionEvent.ACTION_UP) {
+                        View clicked = findChildByCoordinates((ViewGroup) decor, event.getRawX(), event.getRawY());
+                        String text = extractTextFromView(clicked);
+
+                        if (!text.isEmpty()) {
+                            if (text.contains("general") || text.contains("generale") || text.contains("allgemein") || text.contains("général")) {
+                                isGeneralTabCurrentlyActive = true;
+                                if (event.getAction() == MotionEvent.ACTION_UP) {
+                                    showOverlay(a, decor);
+                                    ModuleLog.line("(IE|FakeGeneral) Active via touch predictive");
+                                }
+                            } else if (text.contains("primary") || text.contains("principale") || text.contains("request") || text.contains("richiest")) {
+                                isGeneralTabCurrentlyActive = false;
+                                if (event.getAction() == MotionEvent.ACTION_UP) {
+                                    hideOverlay();
+                                    ModuleLog.line("(IE|FakeGeneral) Inactive via touch predictive");
+                                }
+                            }
+                        }
+                    }
+
                     if (event.getAction() == MotionEvent.ACTION_UP) {
-                        // Give UI a moment to update selection state
+                        // Give UI a moment to update selection state as fallback
                         decor.postDelayed(() -> {
                             if (!isInbox(a)) return;
                             boolean active = isGeneralTabActive(decor);
                             if (active != isGeneralTabCurrentlyActive) {
                                 isGeneralTabCurrentlyActive = active;
+                                ModuleLog.line("(IE|FakeGeneral) State updated via postDelayed to: " + active);
                                 if (active) {
                                     showOverlay(a, decor);
                                 } else {
                                     hideOverlay();
                                 }
                             }
-                        }, 50);
+                        }, 100);
                     }
                 }
             });
@@ -288,9 +311,41 @@ public class FakeGeneralModeHook {
             CharSequence text = tv.getText();
             if (text != null) {
                 String s = text.toString().toLowerCase(java.util.Locale.ROOT);
-                // General, Generale, Allgemein, Général, General
-                if ((s.equals("general") || s.equals("generale") || s.equals("allgemein") || s.equals("général")) && root.isSelected()) {
-                    return true;
+                // Check if it's the General tab
+                if (s.equals("general") || s.equals("generale") || s.equals("allgemein") || s.equals("général") || s.contains("general")) {
+                    // It could be selected itself, or its parent could be selected
+                    boolean selected = root.isSelected() || root.isActivated();
+
+                    if (!selected) {
+                        // Check content description for accessibility "selected" state
+                        CharSequence desc = root.getContentDescription();
+                        if (desc != null) {
+                            String d = desc.toString().toLowerCase(java.util.Locale.ROOT);
+                            if (d.contains("selected") || d.contains("selezionato")) {
+                                selected = true;
+                            }
+                        }
+                    }
+
+                    if (!selected) {
+                        // Check parent up to 3 levels
+                        View p = root;
+                        for (int i = 0; i < 3; i++) {
+                            if (p.getParent() instanceof View) {
+                                p = (View) p.getParent();
+                                if (p.isSelected() || p.isActivated()) {
+                                    selected = true;
+                                    break;
+                                }
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+
+                    if (selected) {
+                        return true;
+                    }
                 }
             }
         }
@@ -305,5 +360,45 @@ public class FakeGeneralModeHook {
         }
 
         return false;
+    }
+
+    private View findChildByCoordinates(ViewGroup root, float x, float y) {
+        for (int i = root.getChildCount() - 1; i >= 0; i--) {
+            View child = root.getChildAt(i);
+            if (child.getVisibility() == View.VISIBLE) {
+                int[] location = new int[2];
+                child.getLocationOnScreen(location);
+                int childX = location[0];
+                int childY = location[1];
+                if (x >= childX && x <= childX + child.getWidth() &&
+                    y >= childY && y <= childY + child.getHeight()) {
+                    if (child instanceof ViewGroup) {
+                        View descendant = findChildByCoordinates((ViewGroup) child, x, y);
+                        if (descendant != null) return descendant;
+                    }
+                    return child;
+                }
+            }
+        }
+        return null;
+    }
+
+    private String extractTextFromView(View v) {
+        if (v == null) return "";
+        if (v instanceof android.widget.TextView) {
+            CharSequence cs = ((android.widget.TextView) v).getText();
+            return cs != null ? cs.toString().toLowerCase(java.util.Locale.ROOT) : "";
+        }
+        if (v.getContentDescription() != null) {
+            return v.getContentDescription().toString().toLowerCase(java.util.Locale.ROOT);
+        }
+        if (v instanceof ViewGroup) {
+            ViewGroup vg = (ViewGroup) v;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                String t = extractTextFromView(vg.getChildAt(i));
+                if (!t.isEmpty()) return t;
+            }
+        }
+        return "";
     }
 }
