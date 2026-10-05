@@ -12,8 +12,14 @@ import java.util.HashSet;
 import java.util.Set;
 
 import de.robv.android.xposed.XC_MethodHook;
+import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
+
 import org.luckypray.dexkit.DexKitBridge;
+import org.luckypray.dexkit.query.FindMethod;
+import org.luckypray.dexkit.query.matchers.MethodMatcher;
+import org.luckypray.dexkit.result.MethodData;
+
 import ps.reso.instaeclipse.R;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
@@ -27,9 +33,13 @@ public class FakeGeneralModeHook {
     private static int nullStateId = 0;
     private static int threadHeaderId = 0;
 
+    // Global flag updated by UI layout listeners
+    private static volatile boolean isGeneralTabCurrentlyActive = false;
+
     public void install(DexKitBridge bridge, ClassLoader classLoader) {
         if (!FeatureFlags.fakeGeneralMode) return;
-        FeatureStatusTracker.setHooked("FakeGeneralMode");
+
+        installDataHook(bridge, classLoader);
 
         XC_MethodHook resumeHook = new XC_MethodHook() {
             @Override
@@ -59,6 +69,46 @@ public class FakeGeneralModeHook {
             } catch (Throwable t) {
                 ModuleLog.line("(IE|FakeGeneral) ⚠️ hook " + act + ": " + t.getMessage());
             }
+        }
+    }
+
+    private void installDataHook(DexKitBridge bridge, ClassLoader classLoader) {
+        XC_MethodHook filter = new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) {
+                if (!FeatureFlags.fakeGeneralMode || !isGeneralTabCurrentlyActive) return;
+
+                Object r = param.getResult();
+                if (!(r instanceof java.util.List<?> list)) return;
+
+                // If we are in the General tab, return an empty list natively
+                try {
+                    param.setResult(new java.util.ArrayList<>());
+                } catch (Throwable ignored) {}
+            }
+        };
+
+        try {
+            int n = 0;
+            java.util.List<MethodData> anchorMethods = bridge.findMethod(FindMethod.create()
+                    .matcher(MethodMatcher.create().usingStrings("DirectThreadStoreImpl.getSortedCopyOfThreadSummaries")));
+
+            if (!anchorMethods.isEmpty()) {
+                String targetClassName = anchorMethods.get(0).getClassName();
+                try {
+                    Class<?> targetClass = classLoader.loadClass(targetClassName);
+                    for (java.lang.reflect.Method m : targetClass.getDeclaredMethods()) {
+                        if (m.getReturnType() == java.util.List.class) {
+                            try { XposedBridge.hookMethod(m, filter); n++; }
+                            catch (Throwable ignored) {}
+                        }
+                    }
+                } catch (Throwable ignored) {}
+            }
+            if (n > 0) FeatureStatusTracker.setHooked("FakeGeneralMode");
+            ModuleLog.line("(IE|FakeGeneral) data filter hooked " + n + " method(s)");
+        } catch (Throwable t) {
+            ModuleLog.line("(IE|FakeGeneral) ⚠️ data filter: " + t.getMessage());
         }
     }
 
@@ -107,6 +157,9 @@ public class FakeGeneralModeHook {
 
         View decor = a.getWindow().getDecorView();
         boolean isGeneralActive = isGeneralTabActive(decor);
+
+        // Update the global flag so the data hook knows what to do
+        isGeneralTabCurrentlyActive = isGeneralActive;
 
         if (isGeneralActive) {
             showOverlay(a, decor);
