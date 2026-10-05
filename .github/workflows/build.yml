@@ -1,6 +1,5 @@
 name: Build All Branches
 
-
 on:
   push:
     branches:
@@ -72,16 +71,18 @@ jobs:
         run: ./gradlew assembleDebug --stacktrace
 
       - name: Prepare APK Name
+        id: prep
         run: |
           mkdir -p dist
           SAFE_BRANCH=$(echo "${{ matrix.branch }}" | sed 's/[^a-zA-Z0-9._-]/-/g')
           cp app/build/outputs/apk/debug/*.apk dist/InstaEclipse-${SAFE_BRANCH}.apk
+          echo "safe_branch=${SAFE_BRANCH}" >> $GITHUB_OUTPUT
 
       - name: Publish Direct APK to GitHub Releases
         uses: softprops/action-gh-release@v2
         if: success()
         with:
-          tag_name: build-${{ matrix.branch }}-${{ github.run_number }}
+          tag_name: build-${{ steps.prep.outputs.safe_branch }}-${{ github.run_number }}
           name: Build (${{ matrix.branch }}) #${{ github.run_number }}
           body: |
             Release automatica generata per il branch **${{ matrix.branch }}**.
