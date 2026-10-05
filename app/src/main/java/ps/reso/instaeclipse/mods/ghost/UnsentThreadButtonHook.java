@@ -141,7 +141,7 @@ public class UnsentThreadButtonHook {
             ViewGroup target;
             int insertAt;
             View backTemp = backButtonId != 0 ? activity.findViewById(backButtonId) : null;
-            if (backTemp == null) backTemp = findBackButton(header);
+            if (backTemp == null) { backTemp = findBackButton(header); }
             final View back = backTemp;
             if (back != null && back.getParent() instanceof ViewGroup) {
                 target = (ViewGroup) back.getParent();
@@ -184,6 +184,7 @@ public class UnsentThreadButtonHook {
             final View headerRoot = header;
             btn.setOnClickListener(v -> {
                 String threadId = resolveThreadId(headerRoot);
+                if (threadId == null) threadId = KeepUnsentMessagesHook.currentThreadId;
                 ModuleLog.line("(IE|UnsentBtn) open thread=" + threadId);
                 ps.reso.instaeclipse.utils.dialog.DialogUtils.showThreadUnsent(activity, threadId, threadTitle(activity));
             });

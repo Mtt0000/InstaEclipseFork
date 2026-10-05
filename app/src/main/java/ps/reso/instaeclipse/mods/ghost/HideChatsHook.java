@@ -211,13 +211,14 @@ public class HideChatsHook {
             if (header == null) return false;
 
             View backTemp = backButtonId != 0 ? activity.findViewById(backButtonId) : null;
-            if (backTemp == null) backTemp = findBackButton(header);
+            if (backTemp == null) { backTemp = findBackButton(header); }
             final View back = backTemp;
 
             final View headerRoot = header;
 
             android.view.View.OnLongClickListener hideAction = v -> {
                 String threadId = resolveThreadId(headerRoot);
+                if (threadId == null) threadId = KeepUnsentMessagesHook.currentThreadId;
                 if (threadId == null) {
                     Toast.makeText(activity, I18n(activity, R.string.ig_hide_chat_no_thread), Toast.LENGTH_SHORT).show();
                     return true;
