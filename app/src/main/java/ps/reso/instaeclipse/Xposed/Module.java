@@ -265,6 +265,7 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
 
                     try {
                         new ps.reso.instaeclipse.mods.ghost.HideChatsHook().install(dexKitBridge, lpparam.classLoader); // Hide Specific Chats
+                        new ps.reso.instaeclipse.mods.direct.FakeGeneralModeHook().install(dexKitBridge, lpparam.classLoader); // Fake General Mode Data
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | HideChats): ❌ Failed to hook");
                     }
