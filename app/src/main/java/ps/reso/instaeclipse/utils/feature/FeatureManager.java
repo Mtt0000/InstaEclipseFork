@@ -96,6 +96,12 @@ public class FeatureManager {
             FeatureStatusTracker.setDisabled("HideSpecificChats");
         }
 
+        if (FeatureFlags.fakeGeneralMode) {
+            FeatureStatusTracker.setEnabled("FakeGeneralMode", R.string.ig_dialog_fake_general);
+        } else {
+            FeatureStatusTracker.setDisabled("FakeGeneralMode");
+        }
+
         // Clean Feed
         if (FeatureFlags.hideSuggestionsInFeed) {
             FeatureStatusTracker.setEnabled("HideSuggestionsInFeed", R.string.ig_dialog_clean_feed_hide_suggested);
