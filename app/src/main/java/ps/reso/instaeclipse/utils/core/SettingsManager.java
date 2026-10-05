@@ -42,6 +42,7 @@ public class SettingsManager {
         editor.putBoolean("lockDirectAlways", FeatureFlags.lockDirectAlways);
         editor.putBoolean("lockWholeApp", FeatureFlags.lockWholeApp);
         editor.putBoolean("hideSpecificChats", FeatureFlags.hideSpecificChats);
+        editor.putBoolean("fakeGeneralMode", FeatureFlags.fakeGeneralMode);
         editor.putBoolean("lockUseFingerprint", FeatureFlags.lockUseFingerprint);
 
         // Quick Toggles
@@ -150,6 +151,7 @@ public class SettingsManager {
         FeatureFlags.lockDirectAlways = prefs.getBoolean("lockDirectAlways", false);
         FeatureFlags.lockWholeApp = prefs.getBoolean("lockWholeApp", false);
         FeatureFlags.hideSpecificChats = prefs.getBoolean("hideSpecificChats", false);
+        FeatureFlags.fakeGeneralMode = prefs.getBoolean("fakeGeneralMode", false);
         FeatureFlags.lockUseFingerprint = prefs.getBoolean("lockUseFingerprint", true);
 
         // Quick Toggles
