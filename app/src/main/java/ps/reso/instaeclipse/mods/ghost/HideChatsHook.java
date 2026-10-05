@@ -500,25 +500,30 @@ public class HideChatsHook {
             android.os.Bundle ex = activity.getIntent() != null ? activity.getIntent().getExtras() : null;
             if (ex != null) {
                 for (String k : ex.keySet()) {
-                    Object v = ex.get(k);
-                    if (v == null) continue;
-                    String cn = v.getClass().getName();
-                    if (cn.contains("DirectThreadKey")) {
-                        String id = firstStringField(v);
-                        if (id != null) return sanitizeId(id);
-                    } else if (v instanceof android.os.Bundle) {
-                        android.os.Bundle b = (android.os.Bundle) v;
-                        for (String innerK : b.keySet()) {
-                            Object innerV = b.get(innerK);
-                            if (innerV != null && innerV.getClass().getName().contains("DirectThreadKey")) {
-                                String id = firstStringField(innerV);
-                                if (id != null) return sanitizeId(id);
-                            }
-                        }
-                    }
+                    Object dtk = scanForDirectThreadKey(ex.get(k), 0, java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>()), 4);
+                    if (dtk != null) { String id = firstStringField(dtk); if (id != null) return sanitizeId(id); }
                 }
             }
         } catch (Throwable ignored) {}
+        return null;
+    }
+
+    private Object scanForDirectThreadKey(Object obj, int depth, java.util.Set<Object> seen, int maxDepth) {
+        if (obj == null || depth > maxDepth || !seen.add(obj)) return null;
+        String cn = obj.getClass().getName();
+        if (cn.contains("DirectThreadKey")) return obj;
+        boolean descendable = cn.startsWith("X.") || cn.startsWith("com.instagram.") || obj instanceof android.os.Bundle;
+        if (!descendable) return null;
+        if (obj instanceof android.os.Bundle) {
+            try {
+                android.os.Bundle b = (android.os.Bundle) obj;
+                for (String k : b.keySet()) {
+                    Object r = scanForDirectThreadKey(b.get(k), depth + 1, seen, maxDepth);
+                    if (r != null) return r;
+                }
+            } catch (Throwable ignored) {}
+            return null;
+        }
         return null;
     }
 }

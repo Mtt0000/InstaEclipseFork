@@ -183,7 +183,8 @@ public class UnsentThreadButtonHook {
 
             final View headerRoot = header;
             btn.setOnClickListener(v -> {
-                String threadId = resolveThreadId(headerRoot);
+                String threadId = resolveFromIntent(activity);
+                if (threadId == null) threadId = resolveThreadId(headerRoot);
                 if (threadId == null) threadId = KeepUnsentMessagesHook.currentThreadId;
                 ModuleLog.line("(IE|UnsentBtn) open thread=" + threadId);
                 ps.reso.instaeclipse.utils.dialog.DialogUtils.showThreadUnsent(activity, threadId, threadTitle(activity));
@@ -308,5 +309,37 @@ public class UnsentThreadButtonHook {
     }
     private static int dp(Activity a, int v) {
         return Math.round(v * a.getResources().getDisplayMetrics().density);
+    }
+
+    private String resolveFromIntent(Activity activity) {
+        try {
+            android.os.Bundle ex = activity.getIntent() != null ? activity.getIntent().getExtras() : null;
+            if (ex != null) {
+                for (String k : ex.keySet()) {
+                    Object dtk = scanForDirectThreadKey(ex.get(k), 0, java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>()), 4);
+                    if (dtk != null) { String id = firstStringField(dtk); if (id != null) return id; }
+                }
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    private Object scanForDirectThreadKey(Object obj, int depth, java.util.Set<Object> seen, int maxDepth) {
+        if (obj == null || depth > maxDepth || !seen.add(obj)) return null;
+        String cn = obj.getClass().getName();
+        if (cn.contains("DirectThreadKey")) return obj;
+        boolean descendable = cn.startsWith("X.") || cn.startsWith("com.instagram.") || obj instanceof android.os.Bundle;
+        if (!descendable) return null;
+        if (obj instanceof android.os.Bundle) {
+            try {
+                android.os.Bundle b = (android.os.Bundle) obj;
+                for (String k : b.keySet()) {
+                    Object r = scanForDirectThreadKey(b.get(k), depth + 1, seen, maxDepth);
+                    if (r != null) return r;
+                }
+            } catch (Throwable ignored) {}
+            return null;
+        }
+        return null;
     }
 }
