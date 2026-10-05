@@ -7,6 +7,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.FrameLayout;
+import android.view.MotionEvent;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -59,6 +60,7 @@ public class FakeGeneralModeHook {
                     if (!FeatureFlags.fakeGeneralMode) return;
                     checkAndApplyFakeGeneral(activity);
                 });
+                hookTouchEvents(activity);
                 checkAndApplyFakeGeneral(activity);
             }
         };
@@ -69,6 +71,37 @@ public class FakeGeneralModeHook {
             } catch (Throwable t) {
                 ModuleLog.line("(IE|FakeGeneral) ⚠️ hook " + act + ": " + t.getMessage());
             }
+        }
+    }
+
+    private void hookTouchEvents(Activity a) {
+        try {
+            View decor = a.getWindow().getDecorView();
+            // Try hooking dispatchTouchEvent on the activity to track clicks on tabs
+            XposedHelpers.findAndHookMethod(a.getClass(), "dispatchTouchEvent", MotionEvent.class, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) {
+                    if (!isInbox(a)) return;
+                    MotionEvent event = (MotionEvent) param.args[0];
+                    if (event.getAction() == MotionEvent.ACTION_UP) {
+                        // Give UI a moment to update selection state
+                        decor.postDelayed(() -> {
+                            if (!isInbox(a)) return;
+                            boolean active = isGeneralTabActive(decor);
+                            if (active != isGeneralTabCurrentlyActive) {
+                                isGeneralTabCurrentlyActive = active;
+                                if (active) {
+                                    showOverlay(a, decor);
+                                } else {
+                                    hideOverlay();
+                                }
+                            }
+                        }, 50);
+                    }
+                }
+            });
+        } catch (Throwable t) {
+            ModuleLog.line("(IE|FakeGeneral) ⚠️ touch hook failed: " + t.getMessage());
         }
     }
 
