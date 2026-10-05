@@ -140,10 +140,41 @@ public class FakeGeneralModeHook {
         XC_MethodHook filter = new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) {
-                if (!FeatureFlags.fakeGeneralMode || !isGeneralTabCurrentlyActive) return;
+                if (!FeatureFlags.fakeGeneralMode) return;
 
                 Object r = param.getResult();
-                if (!(r instanceof java.util.List<?> list)) return;
+                if (!(r instanceof java.util.List<?> list) || list.isEmpty()) return;
+
+                boolean isGeneralData = isGeneralTabCurrentlyActive;
+
+                // Fallback heuristic: check the list items. If ALL valid items are folderType == 1 (General),
+                // we assume we are in the General tab even if the UI flag missed it.
+                if (!isGeneralData) {
+                    boolean allGeneral = true;
+                    int validCount = 0;
+                    try {
+                        for (int i = 0; i < Math.min(list.size(), 10); i++) {
+                            Object item = list.get(i);
+                            if (item != null) {
+                                String str = item.toString();
+                                // Just a loose heuristic: the summary objects often contain folder identifiers
+                                if (str.contains("folderType=0") || str.contains("folder_type=0")) {
+                                    allGeneral = false;
+                                    break;
+                                }
+                                if (str.contains("folderType=1") || str.contains("folder_type=1")) {
+                                    validCount++;
+                                }
+                            }
+                        }
+                    } catch (Throwable ignored) {}
+                    if (validCount > 0 && allGeneral) {
+                        isGeneralData = true;
+                        ModuleLog.line("(IE|FakeGeneral) Data heuristic detected General tab");
+                    }
+                }
+
+                if (!isGeneralData) return;
 
                 // If we are in the General tab, return an empty list natively
                 try {
@@ -214,21 +245,28 @@ public class FakeGeneralModeHook {
     }
 
     private void checkAndApplyFakeGeneral(Activity a) {
-        if (!isInbox(a)) {
-            hideOverlay();
-            return;
-        }
-
+        // Broadened check: do not strictly require isInbox to update the state,
+        // just hide the overlay if we aren't in inbox.
+        // But we DO want to detect if General is active anytime it's on screen.
         View decor = a.getWindow().getDecorView();
         boolean isGeneralActive = isGeneralTabActive(decor);
 
         if (isGeneralActive == isGeneralTabCurrentlyActive && fakeOverlay != null) {
+            if (!isInbox(a)) {
+                hideOverlay();
+                return;
+            }
             if (isGeneralActive && fakeOverlay.getVisibility() == View.VISIBLE) return;
             if (!isGeneralActive && fakeOverlay.getVisibility() == View.GONE) return;
         }
 
         // Update the global flag so the data hook knows what to do
         isGeneralTabCurrentlyActive = isGeneralActive;
+
+        if (!isInbox(a)) {
+            hideOverlay();
+            return;
+        }
 
         if (isGeneralActive) {
             showOverlay(a, decor);
@@ -271,15 +309,13 @@ public class FakeGeneralModeHook {
             // Also hide the recycler view to prevent scrolling/clicks behind the overlay.
             listContainer.setVisibility(View.INVISIBLE);
         } else {
-            // Fallback: full screen but might cover tabs
-            // Let's assume there's a fragment container we can attach to.
-            ViewGroup content = a.findViewById(android.R.id.content);
-            if (content != null) {
-                 if (fakeOverlay.getParent() != content) {
+            // Fallback: attach to decor directly, it's safer than relying on android.R.id.content
+            if (decor instanceof ViewGroup) {
+                 if (fakeOverlay.getParent() != decor) {
                      if (fakeOverlay.getParent() != null) {
                          ((ViewGroup) fakeOverlay.getParent()).removeView(fakeOverlay);
                      }
-                     content.addView(fakeOverlay, new ViewGroup.LayoutParams(
+                     ((ViewGroup) decor).addView(fakeOverlay, new ViewGroup.LayoutParams(
                              ViewGroup.LayoutParams.MATCH_PARENT,
                              ViewGroup.LayoutParams.MATCH_PARENT));
                  }
@@ -319,46 +355,44 @@ public class FakeGeneralModeHook {
     private boolean isGeneralTabActive(View root) {
         if (root == null) return false;
 
-        if (root instanceof android.widget.TextView) {
-            android.widget.TextView tv = (android.widget.TextView) root;
-            CharSequence text = tv.getText();
-            if (text != null) {
-                String s = text.toString().toLowerCase(java.util.Locale.ROOT).trim();
-                // Check if it's the General tab
-                if (s.equals("general") || s.equals("generale") || s.equals("allgemein") || s.equals("général")) {
-                    // It could be selected itself, or its parent could be selected
-                    boolean selected = root.isSelected() || root.isActivated();
+        String s = "";
+        if (root instanceof android.widget.TextView && ((android.widget.TextView) root).getText() != null) {
+            s = ((android.widget.TextView) root).getText().toString().toLowerCase(java.util.Locale.ROOT).trim();
+        } else if (root.getContentDescription() != null) {
+            s = root.getContentDescription().toString().toLowerCase(java.util.Locale.ROOT).trim();
+        }
 
-                    if (!selected) {
-                        // Check content description for accessibility "selected" state
-                        CharSequence desc = root.getContentDescription();
-                        if (desc != null) {
-                            String d = desc.toString().toLowerCase(java.util.Locale.ROOT);
-                            if (d.contains("selected") || d.contains("selezionato")) {
-                                selected = true;
-                            }
+        if (!s.isEmpty()) {
+            if (s.equals("general") || s.equals("generale") || s.equals("allgemein") || s.equals("général") || s.contains(" general ") || s.startsWith("general ")) {
+                boolean selected = root.isSelected() || root.isActivated();
+
+                if (!selected) {
+                    CharSequence desc = root.getContentDescription();
+                    if (desc != null) {
+                        String d = desc.toString().toLowerCase(java.util.Locale.ROOT);
+                        if (d.contains("selected") || d.contains("selezionato") || d.contains("ausgewählt") || d.contains("sélectionné")) {
+                            selected = true;
                         }
                     }
+                }
 
-                    if (!selected) {
-                        // Check parent up to 3 levels
-                        View p = root;
-                        for (int i = 0; i < 3; i++) {
-                            if (p.getParent() instanceof View) {
-                                p = (View) p.getParent();
-                                if (p.isSelected() || p.isActivated()) {
-                                    selected = true;
-                                    break;
-                                }
-                            } else {
+                if (!selected) {
+                    View p = root;
+                    for (int i = 0; i < 3; i++) {
+                        if (p.getParent() instanceof View) {
+                            p = (View) p.getParent();
+                            if (p.isSelected() || p.isActivated()) {
+                                selected = true;
                                 break;
                             }
+                        } else {
+                            break;
                         }
                     }
+                }
 
-                    if (selected) {
-                        return true;
-                    }
+                if (selected) {
+                    return true;
                 }
             }
         }
