@@ -223,6 +223,10 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                     }
 
                     try {
+                        new ps.reso.instaeclipse.mods.devops.FakeGeneralDebugHook().install(dexKitBridge, lpparam.classLoader);
+                    } catch (Throwable ignored) {}
+
+                    try {
                         new GhostTypingIndicatorHook().handleTypingBlock(dexKitBridge); // DM Typing
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | GhostTyping): ❌ Failed to hook");
