@@ -211,18 +211,15 @@ public class HideChatsHook {
             if (header == null) return false;
 
             View backTemp = backButtonId != 0 ? activity.findViewById(backButtonId) : null;
-            if (backTemp == null) backTemp = findBackButton(header);
+            if (backTemp == null) { backTemp = findBackButton(header); }
             final View back = backTemp;
 
             final View headerRoot = header;
-            final String[] bound = { KeepUnsentMessagesHook.currentThreadId };
 
             android.view.View.OnLongClickListener hideAction = v -> {
-                String threadId = HideChatsHook.currentThreadId;
-                if (threadId == null) threadId = resolveFromActivity(activity);
-                if (threadId == null) threadId = bound[0];
-                if (threadId == null) threadId = KeepUnsentMessagesHook.currentThreadId;
+                String threadId = resolveFromIntent(activity);
                 if (threadId == null) threadId = resolveThreadId(headerRoot);
+                if (threadId == null) threadId = KeepUnsentMessagesHook.currentThreadId;
                 if (threadId == null) {
                     Toast.makeText(activity, I18n(activity, R.string.ig_hide_chat_no_thread), Toast.LENGTH_SHORT).show();
                     return true;
@@ -246,7 +243,7 @@ public class HideChatsHook {
                                 @Override
                                 public void run() {
                                     longPressTriggered = true;
-                                    hideAction.onLongClick(back);
+                                    // triggered
                                 }
                             };
 
@@ -261,6 +258,8 @@ public class HideChatsHook {
                                     case android.view.MotionEvent.ACTION_CANCEL:
                                         handler.removeCallbacks(runnable);
                                         if (longPressTriggered) {
+                                            hideAction.onLongClick(back);
+                                            activity.finish();
                                             return true; // consume event if long press triggered
                                         }
                                         break;
@@ -349,82 +348,49 @@ public class HideChatsHook {
         }
     }
 
-    // ── thread-id resolution (mirrors UnsentThreadButtonHook.resolveFromActivity — proven) ──
-    private String resolveFromActivity(Activity activity) {
-        try {
-            // 1. Intent extras (thread key usually passed here); depth 4.
-            android.os.Bundle ex = activity.getIntent() != null ? activity.getIntent().getExtras() : null;
-            if (ex != null) {
-                for (String k : ex.keySet()) {
-                    Object dtk = scan(ex.get(k), 0,
-                            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>()), 4);
-                    if (dtk != null) { String id = firstStringField(dtk); if (id != null) return sanitizeId(id); }
-                }
-            }
-            // 2. Activity object graph (hosted thread fragment holds the key); depth 6.
-            Object dtk = scan(activity, 0,
-                    java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>()), 6);
-            return dtk != null ? sanitizeId(firstStringField(dtk)) : null;
-        } catch (Throwable t) { return null; }
-    }
 
-    /** Find a DirectThreadKey in obj's field graph (depth-limited; descends IG/obfuscated + Bundles). */
-    private Object scan(Object obj, int depth, java.util.Set<Object> seen, int maxDepth) {
-        if (obj == null || depth > maxDepth || !seen.add(obj)) return null;
-        String cn = obj.getClass().getName();
-        if (cn.contains("DirectThreadKey")) return obj;
-        boolean descendable = cn.startsWith("X.") || cn.startsWith("com.instagram.")
-                || obj instanceof android.os.Bundle;
-        if (!descendable) return null;
-        if (obj instanceof android.os.Bundle) {
-            try {
-                android.os.Bundle b = (android.os.Bundle) obj;
-                for (String k : b.keySet()) {
-                    Object r = scan(b.get(k), depth + 1, seen, maxDepth);
-                    if (r != null) return r;
-                }
-            } catch (Throwable ignored) {}
-            return null;
-        }
-        try {
-            for (Class<?> c = obj.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
-                for (Field f : c.getDeclaredFields()) {
-                    if (java.lang.reflect.Modifier.isStatic(f.getModifiers()) || f.getType().isPrimitive()) continue;
-                    f.setAccessible(true);
-                    Object v;
-                    try { v = f.get(obj); } catch (Throwable e) { continue; }
-                    if (v == null) continue;
-                    if (v.getClass().getName().contains("DirectThreadKey")) return v;
-                    Object r = scan(v, depth + 1, seen, maxDepth);
-                    if (r != null) return r;
-                }
+    private String resolveThreadId(View header) {
+        if (header == null) return null;
+        java.util.Set<View> visited = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        String found = searchViewHierarchy(header, visited);
+        if (found != null) return sanitizeId(found);
+        View current = header;
+        int up = 0;
+        while (current != null && up++ < 8) {
+            View parent = (current.getParent() instanceof View) ? (View) current.getParent() : null;
+            if (parent != null) {
+                found = searchViewHierarchy(parent, visited);
+                if (found != null) return sanitizeId(found);
             }
-        } catch (Throwable ignored) {}
+            current = parent;
+        }
         return null;
     }
 
-    private String resolveThreadId(View header) {
-        String found = null;
-        View v = header;
-        int up = 0;
-        while (v != null && up++ < 8) {
-            try {
-                if (tagKeyId != 0) {
-                    Object t = v.getTag(tagKeyId);
-                    if (t != null) {
-                        String id = threadIdFromAny(t);
-                        if (id != null && found == null) found = id;
-                    }
+    private String searchViewHierarchy(View view, java.util.Set<View> visited) {
+        if (view == null || !visited.add(view)) return null;
+        try {
+            if (tagKeyId != 0) {
+                Object t = view.getTag(tagKeyId);
+                if (t != null) {
+                    String id = threadIdFromAny(t);
+                    if (id != null) return id;
                 }
-                Object plain = v.getTag();
-                if (plain != null) {
-                    String id = threadIdFromAny(plain);
-                    if (id != null && found == null) found = id;
-                }
-            } catch (Throwable ignored) {}
-            v = (v.getParent() instanceof View) ? (View) v.getParent() : null;
+            }
+            Object plain = view.getTag();
+            if (plain != null) {
+                String id = threadIdFromAny(plain);
+                if (id != null) return id;
+            }
+        } catch (Throwable ignored) {}
+        if (view instanceof ViewGroup) {
+            ViewGroup vg = (ViewGroup) view;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                String id = searchViewHierarchy(vg.getChildAt(i), visited);
+                if (id != null) return id;
+            }
         }
-        return sanitizeId(found);
+        return null;
     }
 
     private String threadIdFromAny(Object obj) {
@@ -528,4 +494,36 @@ public class HideChatsHook {
         return null;
     }
     private static int dp(Activity a, int v) { return Math.round(v * a.getResources().getDisplayMetrics().density); }
+
+    private String resolveFromIntent(Activity activity) {
+        try {
+            android.os.Bundle ex = activity.getIntent() != null ? activity.getIntent().getExtras() : null;
+            if (ex != null) {
+                for (String k : ex.keySet()) {
+                    Object dtk = scanForDirectThreadKey(ex.get(k), 0, java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>()), 4);
+                    if (dtk != null) { String id = firstStringField(dtk); if (id != null) return sanitizeId(id); }
+                }
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    private Object scanForDirectThreadKey(Object obj, int depth, java.util.Set<Object> seen, int maxDepth) {
+        if (obj == null || depth > maxDepth || !seen.add(obj)) return null;
+        String cn = obj.getClass().getName();
+        if (cn.contains("DirectThreadKey")) return obj;
+        boolean descendable = cn.startsWith("X.") || cn.startsWith("com.instagram.") || obj instanceof android.os.Bundle;
+        if (!descendable) return null;
+        if (obj instanceof android.os.Bundle) {
+            try {
+                android.os.Bundle b = (android.os.Bundle) obj;
+                for (String k : b.keySet()) {
+                    Object r = scanForDirectThreadKey(b.get(k), depth + 1, seen, maxDepth);
+                    if (r != null) return r;
+                }
+            } catch (Throwable ignored) {}
+            return null;
+        }
+        return null;
+    }
 }
